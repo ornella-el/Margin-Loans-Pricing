@@ -15,7 +15,7 @@ class Merton_pricer():
 
     """
 
-    def __init__(self, S0, K, ttm, r, sigma, lambd, meanJ, stdJ, exercise, type_o):
+    def __init__(self, S0, K, ttm, r, sigma, lambd, meanJ, stdJ, exercise):
         self.S0 = S0  # current STOCK price
         self.K = None  # strike
         self.ttm = ttm  # maturity in years
@@ -25,9 +25,7 @@ class Merton_pricer():
         self.lambd = lambd  # λ: Num of jumps per year
         self.meanJ = meanJ  # m: Mean of jump size
         self.stdJ = stdJ  # v: St. dev. of jump size
-
         self.exercise = exercise
-        self.type_o = type_o if type_o is not None else 'no_type'
 
     def payoff_f(self, St):
         if self.type_o == 'call':
@@ -38,20 +36,32 @@ class Merton_pricer():
             raise ValueError('Please select "call" or "put" type.')
         return payoff
 
-    def closed_formula(self, K):
+    def r_k(self, k):
+        return self.r - self.lambd * (self.meanJ - 1) + (k * np.log(self.meanJ)) / self.ttm
+
+    def sigma_k(self, k):
+        return np.sqrt(self.sigma ** 2 + (k * self.stdJ ** 2) / self.ttm)
+
+    def closed_formula_call(self, K):
         """
-        Merton closed formula.
+        Merton closed formula for call options
         """
         self.K = K
         tot = 0
         for k in range(40):
-            # m = self.lambd * (np.exp(self.meanJ + self.stdJ**2)/2)-1
-            r_k = self.r - self.lambd*(self.meanJ-1) + (k * np.log(self.meanJ)) / self.ttm
-            sigma_k = np.sqrt(self.sigma ** 2 + (k * self.stdJ ** 2) / self.ttm)
-
             tot += (np.exp(-self.meanJ * self.lambd * self.ttm) * (self.meanJ * self.lambd * self.ttm) ** k / factorial(
-                k)) * BS_pricer.BlackScholes(self.type_o, self.S0, self.K, self.ttm, r_k, sigma_k)
+                k)) * BS_pricer.BlackScholes('call', self.S0, self.K, self.ttm, self.r_k(k), self.sigma_k(k))
+        return tot
 
+    def closed_formula_put(self, K):
+        """
+        Merton closed formula for put options
+        """
+        self.K = K
+        tot = 0
+        for k in range(40):
+            tot += (np.exp(-self.meanJ * self.lambd * self.ttm) * (self.meanJ * self.lambd * self.ttm) ** k / factorial(
+                k)) * BS_pricer.BlackScholes('put', self.S0, self.K, self.ttm, self.r_k(k), self.sigma_k(k))
         return tot
 
 # REFERENCES: https://www.codearmo.com/python-tutorial/merton-jump-diffusion-model-python

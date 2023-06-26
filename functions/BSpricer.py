@@ -20,7 +20,7 @@ class BS_pricer:
     Closed Formula.
     """
 
-    def __init__(self, S0, r, sigma,  ttm, exercise, K, type_o):
+    def __init__(self, S0, r, sigma,  ttm, exercise, K):
         self.S0 = S0  # current price
         self.r = r  # interest rate
         self.sigma = sigma  # diffusion coefficient
@@ -28,7 +28,7 @@ class BS_pricer:
         self.ttm = ttm  # maturity in years
         # self.price = 0
         self.exercise = exercise
-        self.type_o = type_o if type_o is not None else 'no_type'
+        # self.type_o = type_o if type_o is not None else 'no_type'
 
     def payoff_f(self, St):
         if self.type_o == 'call':
@@ -71,15 +71,16 @@ class BS_pricer:
         else:
             raise ValueError("invalid type. Set 'call' or 'put'")
 
-    def closed_formula(self, K):
+    def closed_formula_call(self, K):
         """
-        Black Scholes closed formula:
+          Black Scholes closed formula for call options
         """
         self.K = K
+        return self.S0 * ss.norm.cdf(self.d1_f()) - (self.K * np.exp(-self.r * self.ttm) * ss.norm.cdf(self.d2_f()))
 
-        if self.type_o == 'call':
-            return self.S0 * ss.norm.cdf(self.d1_f()) - (self.K * np.exp(-self.r * self.ttm) * ss.norm.cdf(self.d2_f()))
-        elif self.type_o == 'put':
-            return self.K * np.exp(-self.r * self.ttm) * ss.norm.cdf(- self.d2_f()) - self.S0 * ss.norm.cdf(- self.d1_f())
-        else:
-            raise ValueError('Please select "call" or "put" type.')
+    def closed_formula_put(self, K):
+        """
+          Black Scholes closed formula for put options
+        """
+        self.K = K
+        return self.K * np.exp(-self.r * self.ttm) * ss.norm.cdf(- self.d2_f()) - self.S0 * ss.norm.cdf(-self.d1_f())

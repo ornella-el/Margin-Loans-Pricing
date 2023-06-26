@@ -6,10 +6,10 @@ from IPython.display import display
 from yahoo_fin import options
 from yahoo_fin import stock_info as si
 
-import BlackScholes as bs
-import Merton as m
-import Kou as k
-import VarianceGamma as vg
+import functions.BlackScholes as bs
+import functions.Merton as m
+import functions.Kou as k
+import functions.VarianceGamma as vg
 
 # import scipy.stats as stats
 # import math
