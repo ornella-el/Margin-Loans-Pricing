@@ -16,7 +16,7 @@ class Kou_pricer():
         V_KJD_put = V_KJD_call + (Kexp(-rT) - S(0))   put-call parity
     """
 
-    def __init__(self, S0, K, ttm, r, sigma, lambd, p, eta1, eta2, exercise, type_o):
+    def __init__(self, S0, K, ttm, r, sigma, lambd, p, eta1, eta2, exercise):
         self.S0 = S0  # current STOCK price
         self.K = K  # strike
         self.T = ttm  # maturity in years
@@ -30,7 +30,7 @@ class Kou_pricer():
         self.eta2 = eta2  # η_2: rate of exponential r.v. ξ_2 (1/η_2 mean)
 
         self.exercise = exercise
-        self.type_o = type_o if type_o is not None else 'no_type'
+
 
     def payoff_f(self, St):
         if self.type_o == 'call':
