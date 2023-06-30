@@ -31,11 +31,10 @@ class Kou_pricer():
 
         self.exercise = exercise
 
-
-    def payoff_f(self, St):
-        if self.type_o == 'call':
+    def payoff_f(self, St, type_o):
+        if type_o == 'call':
             payoff = np.maximum(St - self.K, 0)
-        elif self.type_o == 'put':
+        elif type_o == 'put':
             payoff = np.maximum(self.K - St, 0)
         else:
             raise ValueError('Please select "call" or "put" type.')
@@ -109,33 +108,6 @@ class Kou_pricer():
     def Pi(self, n, lambd):
         return np.exp(-lambd * self.T) * (lambd * self.T) ** n / math.factorial(n)
 
-    def Yfunction_old(self, mu, sigma, lambd, p, eta1, eta2, a,
-                  T):  # passing values again because they are modified in vkjd_1
-        bound = 10
-        sump1 = np.zeros(bound)
-        sumq1 = np.zeros(bound)
-
-        for n in range(1, bound + 1):
-            sump2 = np.zeros(n)
-            sumq2 = np.zeros(n)
-            for k in range(1, n + 1):
-                sump2[k - 1] = self.P(n, k, eta1, eta2, p) * (sigma * np.sqrt(T) * eta1) ** k * \
-                               self.I(k - 1, a - mu * T, -eta1, -1 / (sigma * np.sqrt(T)), -sigma * eta1 * np.sqrt(T))
-
-                sumq2[k - 1] = self.Q(n, k, eta1, eta2, p) * (sigma * np.sqrt(T) * eta2) ** k * \
-                               self.I(k - 1, a - mu * T, eta2, 1 / (sigma * np.sqrt(T)), -sigma * eta2 * np.sqrt(T))
-
-            sump1[n - 1] = self.Pi(n, lambd) * np.sum(sump2)
-            sumq1[n - 1] = self.Pi(n, lambd) * np.sum(sumq2)
-            # sump1[n - 1] = self.Pi(n-1, lambd) * np.sum(sump2)
-            # sumq1[n - 1] = self.Pi(n-1, lambd) * np.sum(sumq2)
-
-        Y1 = np.exp((sigma * eta1) ** 2 * T / 2) / (sigma * np.sqrt(2 * np.pi * T)) * np.sum(sump1)
-        Y2 = np.exp((sigma * eta2) ** 2 * T / 2) / (sigma * np.sqrt(2 * np.pi * T)) * np.sum(sumq1)
-        Y3 = self.Pi(0, lambd) * scs.norm.cdf(-(a - mu * T) / (sigma * np.sqrt(T)))
-
-        return Y1 + Y2 + Y3
-
     def Yfunction(self, mu, sigma, lambd, p, eta1, eta2, a, T):
         bound = 10
         sump1 = 0
@@ -182,5 +154,32 @@ class Kou_pricer():
     def closed_formula_put(self, K):
         self.K = K
         return self.closed_formula_call(self.K) + (self.K * np.exp(-self.r * self.T) - self.S0)
+
+    def Yfunction_old(self, mu, sigma, lambd, p, eta1, eta2, a,
+                      T):  # passing values again because they are modified in vkjd_1
+        bound = 10
+        sump1 = np.zeros(bound)
+        sumq1 = np.zeros(bound)
+
+        for n in range(1, bound + 1):
+            sump2 = np.zeros(n)
+            sumq2 = np.zeros(n)
+            for k in range(1, n + 1):
+                sump2[k - 1] = self.P(n, k, eta1, eta2, p) * (sigma * np.sqrt(T) * eta1) ** k * \
+                               self.I(k - 1, a - mu * T, -eta1, -1 / (sigma * np.sqrt(T)), -sigma * eta1 * np.sqrt(T))
+
+                sumq2[k - 1] = self.Q(n, k, eta1, eta2, p) * (sigma * np.sqrt(T) * eta2) ** k * \
+                               self.I(k - 1, a - mu * T, eta2, 1 / (sigma * np.sqrt(T)), -sigma * eta2 * np.sqrt(T))
+
+            sump1[n - 1] = self.Pi(n, lambd) * np.sum(sump2)
+            sumq1[n - 1] = self.Pi(n, lambd) * np.sum(sumq2)
+            # sump1[n - 1] = self.Pi(n-1, lambd) * np.sum(sump2)
+            # sumq1[n - 1] = self.Pi(n-1, lambd) * np.sum(sumq2)
+
+        Y1 = np.exp((sigma * eta1) ** 2 * T / 2) / (sigma * np.sqrt(2 * np.pi * T)) * np.sum(sump1)
+        Y2 = np.exp((sigma * eta2) ** 2 * T / 2) / (sigma * np.sqrt(2 * np.pi * T)) * np.sum(sumq1)
+        Y3 = self.Pi(0, lambd) * scs.norm.cdf(-(a - mu * T) / (sigma * np.sqrt(T)))
+
+        return Y1 + Y2 + Y3
 
 # REFERENCES: S. G. Kou, (2002) A Jump-Diffusion Model for Option Pricing. Management Science 48(8):1086-1101.
