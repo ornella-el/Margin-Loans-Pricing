@@ -109,7 +109,7 @@ class Kou_pricer():
     def Pi(self, n, lambd):
         return np.exp(-lambd * self.T) * (lambd * self.T) ** n / math.factorial(n)
 
-    def Yfunction(self, mu, sigma, lambd, p, eta1, eta2, a,
+    def Yfunction_old(self, mu, sigma, lambd, p, eta1, eta2, a,
                   T):  # passing values again because they are modified in vkjd_1
         bound = 10
         sump1 = np.zeros(bound)
@@ -132,6 +132,33 @@ class Kou_pricer():
 
         Y1 = np.exp((sigma * eta1) ** 2 * T / 2) / (sigma * np.sqrt(2 * np.pi * T)) * np.sum(sump1)
         Y2 = np.exp((sigma * eta2) ** 2 * T / 2) / (sigma * np.sqrt(2 * np.pi * T)) * np.sum(sumq1)
+        Y3 = self.Pi(0, lambd) * scs.norm.cdf(-(a - mu * T) / (sigma * np.sqrt(T)))
+
+        return Y1 + Y2 + Y3
+
+    def Yfunction(self, mu, sigma, lambd, p, eta1, eta2, a, T):
+        bound = 10
+        sump1 = 0
+        sumq1 = 0
+
+        for n in range(1, bound + 1):
+            sump1_n = 0
+            sumq1_n = 0
+            for k in range(1, n + 1):
+                sump2_k = self.P(n, k, eta1, eta2, p) * (sigma * np.sqrt(T) * eta1) ** k * \
+                          self.I(k - 1, a - mu * T, -eta1, -1 / (sigma * np.sqrt(T)), -sigma * eta1 * np.sqrt(T))
+
+                sumq2_k = self.Q(n, k, eta1, eta2, p) * (sigma * np.sqrt(T) * eta2) ** k * \
+                          self.I(k - 1, a - mu * T, eta2, 1 / (sigma * np.sqrt(T)), -sigma * eta2 * np.sqrt(T))
+
+                sump1_n += sump2_k
+                sumq1_n += sumq2_k
+
+            sump1 += self.Pi(n, lambd) * sump1_n
+            sumq1 += self.Pi(n, lambd) * sumq1_n
+
+        Y1 = np.exp((sigma * eta1) ** 2 * T / 2) / (sigma * np.sqrt(2 * np.pi * T)) * sump1
+        Y2 = np.exp((sigma * eta2) ** 2 * T / 2) / (sigma * np.sqrt(2 * np.pi * T)) * sumq1
         Y3 = self.Pi(0, lambd) * scs.norm.cdf(-(a - mu * T) / (sigma * np.sqrt(T)))
 
         return Y1 + Y2 + Y3
