@@ -38,11 +38,44 @@ class VG_pricer():
             raise ValueError('Please select "call" or "put" type.')
         return payoff
 
+    def omega(self):        # martingale correction
+        return - np.log(1 - self.theta * self.nu - (self.sigma ** 2 * self.nu) / 2) / self.nu
+
+    def closed_formula_call(self, K):
+        """
+        VG closed formula for call options.  Put is obtained by put/call parity.
+        """
+
+        def Psy(a, b, g):
+            f = lambda u: ss.norm.cdf(a / np.sqrt(u) + b * np.sqrt(u)) * np.exp((g - 1) * np.log(u)) * np.exp(
+                -u) / ssp.gamma(g)
+            result = quad(f, 0, np.inf)
+            return result[0]
+
+        self.K = K
+
+        # Ugly parameters
+        xi = - self.theta / self.sigma ** 2
+        s = self.sigma / np.sqrt(1 + ((self.theta / self.sigma) ** 2) * (self.nu / 2))
+        alpha = xi * s
+
+        c1 = self.nu / 2 * (alpha + s) ** 2
+        c2 = self.nu / 2 * alpha ** 2
+        d = 1 / s * (np.log(self.S0 / self.K) + self.r * self.ttm + self.ttm / self.nu * np.log((1 - c1) / (1 - c2)))
+
+        # Closed formula
+        call = self.S0 * Psy(d * np.sqrt((1 - c1) / self.nu), (alpha + s) * np.sqrt(self.nu / (1 - c1)),
+                             self.ttm / self.nu) - self.K * np.exp(-self.r * self.ttm) * \
+               Psy(d * np.sqrt((1 - c2) / self.nu), alpha * np.sqrt(self.nu / (1 - c2)), self.ttm / self.nu)
+
+        return call
+
+    def closed_formula_put(self, K):
+        self.K = K
+        return self.closed_formula_call(K) - self.S0 + self.K * np.exp(-self.r * self.ttm)
+
     def gamma(self):
         return self.ttm / self.nu
-
-    def omega(self):
-        return self.nu / np.log(1 - self.theta * self.nu - (self.sigma ** 2 * self.nu) / 2)
 
     def zeta(self, K):
         self.K = K
@@ -91,40 +124,47 @@ class VG_pricer():
 
         return res1 + res2 + res3
 
+    # FAST FOURIER TRANSFORM METHODS
+    def Q1(self, k, cf, right_lim):
+        integrand = lambda u: np.real((np.exp(-u * k * 1j) / (u * 1j)) * cf(u - 1j) / cf(-1j))
+        return 1 / 2 + 1 / np.pi * quad(integrand, 1e-15, right_lim, limit=1000)[0]
 
-    def closed_formula_call(self, K):
+    def Q2(self, k, cf, right_lim):
+        integrand = lambda u: np.real(np.exp(-u * k * 1j) / (u * 1j) * cf(u))
+        return 1 / 2 + 1 / np.pi * quad(integrand, 1e-15, right_lim, limit=1000)[0]
+
+    def cf_VG(self, u, t=1, mu=0, theta=-0.1, sigma=0.2, nu=0.1):
+        return np.exp(
+            t * (1j * mu * u - np.log(1 - 1j * theta * nu * u + 0.5 * nu * sigma ** 2 * u ** 2) / nu))
+
+    def FFT_call(self, K):
+        K = np.array(K)
+        cf_VG_b = partial(cf_VG, t=self.ttm, mu=(self.r - self.omega()), theta=self.theta, sigma=self.sigma, nu=self.nu)
+
+        call_VG = np.zeros_like(K, dtype=float)
+        for i in range(len(K)):
+            k = np.log(K[i] / self.S0)
+            call_VG[i] = self.S0 * self.Q1(k, cf_VG_b, np.inf) - K[i] * np.exp(-self.r * self.ttm) * \
+                         self.Q2(k, cf_VG_b, np.inf)
+        return call_VG
+
+    def FFT_put(self, K):
+        return self.FFT_call(K) - self.S0 + K * np.exp(-self.r * self.ttm)
+
+    # FAST FOURIER TRANSFORM USING LEWIS METHOD
+    def FFT_call2(self, K):
         """
-        VG closed formula for call options.  Put is obtained by put/call parity.
+        FFT method. It returns a vector of prices.
+        K is an array of strikes
         """
+        K = np.array(K)
+        cf_VG_b = partial(cf_VG, t=self.ttm, mu=(self.r - self.omega()), theta=self.theta, sigma=self.sigma, nu=self.nu)
+        return fft_Lewis(K, self.S0, self.r, self.ttm, cf_VG_b, interp="linear")
 
-        def Psy(a, b, g):
-            f = lambda u: ss.norm.cdf(a / np.sqrt(u) + b * np.sqrt(u)) * np.exp((g - 1) * np.log(u)) * np.exp(
-                -u) / ssp.gamma(g)
-            result = quad(f, 0, np.inf)
-            return result[0]
+    def FFT_put2(self, K):
+        return self.FFT_call2(K) - self.S0 + K * np.exp(-self.r * self.ttm)
 
-        self.K = K
-
-        # Ugly parameters
-        xi = - self.theta / self.sigma ** 2
-        s = self.sigma / np.sqrt(1 + ((self.theta / self.sigma) ** 2) * (self.nu / 2))
-        alpha = xi * s
-
-        c1 = self.nu / 2 * (alpha + s) ** 2
-        c2 = self.nu / 2 * alpha ** 2
-        d = 1 / s * (np.log(self.S0 / self.K) + self.r * self.ttm + self.ttm / self.nu * np.log((1 - c1) / (1 - c2)))
-
-        # Closed formula
-        call = self.S0 * Psy(d * np.sqrt((1 - c1) / self.nu), (alpha + s) * np.sqrt(self.nu / (1 - c1)),
-                             self.ttm / self.nu) - self.K * np.exp(-self.r * self.ttm) * \
-               Psy(d * np.sqrt((1 - c2) / self.nu), alpha * np.sqrt(self.nu / (1 - c2)), self.ttm / self.nu)
-
-        return call
-
-    def closed_formula_put(self, K):
-        self.K = K
-        return self.closed_formula_call(K) - self.S0 + self.K * np.exp(-self.r * self.ttm)
-
+    # NOT PROPERLY WORKING CLOSED FORMULAS
     def closed_formula_call2(self, K):
         self.K = K
         mp.dps = 30
@@ -136,55 +176,3 @@ class VG_pricer():
     def closed_formula_put2(self, K):
         self.K = K
         return self.closed_formula_call2(K) - self.S0 + self.K * np.exp(-self.r * self.ttm)
-
-    def FFT_call(self, K):
-        """
-        FFT method. It returns a vector of prices.
-        K is an array of strikes
-        """
-        K = np.array(K)
-        u = np.linspace(0, self.ttm, 10000)
-        cf_VG_b = partial(cf_VG(u, t=self.ttm, mu=(self.r - self.omega()), theta=self.theta, sigma=self.sigma, nu=self.nu))
-        return fft_Lewis(K, self.S0, self.r, self.ttm, cf_VG_b, interp="cubic")
-
-    def FFT_put(self, K):
-        return self.FFT_call(K) - self.S0 + K * np.exp(-self.r * self.ttm)
-
-    def closed_formula_call3(self, K):
-        """
-        VG closed formula for call options.  Put is obtained by put/call parity.
-        """
-
-        def Psy(a, b, g):
-            limit = 100
-            step = 0.001
-            u_values = np.arange(0, limit, step)
-
-            integrand_values = [ss.norm.cdf(a / (np.sqrt(u)+1e-10) + b * np.sqrt(u)) * u ** (g - 1) * np.exp(-u) / ssp.gamma(g)
-                                for u in u_values]
-
-            result = np.trapz(integrand_values, u_values)
-            return result
-
-        self.K = K
-
-        # Ugly parameters
-        xi = - self.theta / self.sigma ** 2
-        s = self.sigma / np.sqrt(1 + ((self.theta / self.sigma) ** 2) * (self.nu / 2))
-        alpha = xi * s
-
-        c1 = self.nu / 2 * (alpha + s) ** 2
-        c2 = self.nu / 2 * alpha ** 2
-        d = 1 / s * (np.log(self.S0 / self.K) + self.r * self.ttm + self.ttm / self.nu * np.log((1 - c1) / (1 - c2)))
-
-        # Closed formula
-        call = self.S0 * Psy(d * np.sqrt((1 - c1) / self.nu), (alpha + s) * np.sqrt(self.nu / (1 - c1)),
-                             self.ttm / self.nu) - self.K * np.exp(-self.r * self.ttm) * \
-               Psy(d * np.sqrt((1 - c2) / self.nu), alpha * np.sqrt(self.nu / (1 - c2)), self.ttm / self.nu)
-
-        return call
-
-    def closed_formula_put3(self, K):
-        self.K = K
-        return self.closed_formula_call3(K) - self.S0 + self.K * np.exp(-self.r * self.ttm)
-
