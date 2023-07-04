@@ -57,37 +57,40 @@ def VarianceGammaPath2(T, days, N, sigma, r, nu, theta, S0):
 
 
 # plot the price paths
-def plotVGPath(SVG, symbol, method):
+def plotVGPath(SVG, symbol, method, ax=None):
+    if ax is None:
+        ax = plt.gca()
     plt.figure(figsize=(8, 6))
-    plt.plot(SVG)
-    plt.xlabel('Time (days)')
-    plt.ylabel('Price')
-    plt.title(f'Variance Gamma Simulated  Paths for {symbol} with {method}')
-    plt.show()
+    ax.plot(SVG)
+    ax.set_xlabel('Time (days)')
+    ax.set_ylabel('Price')
+    ax.set_title(f'Variance Gamma Simulated  Paths for {symbol} with {method}')
     # plt.savefig(f'VG_allpaths_{method}.png')
     return
 
 
 # plot the distribution of prices average
-def plotVGDist(SVG, symbol):
+def plotVGDist(SVG, symbol, ax=None):
+    if ax is None:
+        ax = plt.gca()
     avg_path = np.mean(SVG, axis=0)
-    plt.hist(avg_path, bins=30)
-    plt.xlabel('price')
-    plt.ylabel('frequency')
-    plt.title(f'Variance Gamma: Distribution of {symbol} prices')
-    plt.show()
+    ax.hist(avg_path, bins=30)
+    ax.set_xlabel('price')
+    ax.set_ylabel('frequency')
+    ax.set_title(f'Variance Gamma: Distribution of {symbol} prices')
     return
 
 
-def plotVGLogReturns(SVG, symbol):
+def plotVGLogReturns(SVG, symbol, ax=None):
+    if ax is None:
+        ax = plt.gca()
     log_returns = np.log(SVG[1:] / SVG[:-1])
     log_returns = log_returns.flatten()
-    sns.kdeplot(log_returns, label='Log Returns')
-    plt.xlabel('Log Return')
-    plt.ylabel('Density')
-    plt.title(f'Distribution of VG Log Returns for {symbol}')
-    plt.legend()
-    plt.show()
+    sns.kdeplot(log_returns, label='Log Returns', ax=ax)
+    ax.set_xlabel('Log Return')
+    ax.set_ylabel('Density')
+    ax.set_title(f'Variance Gamma')
+    ax.legend()
     return
 
 

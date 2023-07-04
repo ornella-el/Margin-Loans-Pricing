@@ -35,34 +35,37 @@ def MertonPath(T, days, N, sigma, r, lambd, jump_mean, jump_std, S0):
 
 
 # plot the price paths
-def plotMertonPath(SMerton, symbol):
+def plotMertonPath(SMerton, symbol, ax=None):
+    if ax is None:
+        ax = plt.gca()
     plt.figure(figsize=(10, 6))
-    plt.plot(SMerton)
-    plt.xlabel('Time (days)')
-    plt.ylabel('Price')
-    plt.title(f'Merton Jump diffusion Price Paths for {symbol}')
-    plt.show()
+    ax.plot(SMerton)
+    ax.set_xlabel('Time (days)')
+    ax.set_ylabel('Price')
+    ax.set_title(f'Merton Jump diffusion Price Paths for {symbol}')
     return
 
 
 # plot the distribution of prices average
-def plotMertonDist(SMerton, symbol):
+def plotMertonDist(SMerton, symbol, ax=None):
+    if ax is None:
+        ax = plt.gca()
     avg_path = np.mean(SMerton, axis=0)
-    plt.hist(avg_path, bins='auto')
-    plt.xlabel('price')
-    plt.ylabel('frequency')
-    plt.title(f'Merton Jump diffusion: Distribution of {symbol} prices')
-    plt.show()
+    ax.hist(avg_path, bins='auto')
+    ax.set_xlabel('price')
+    ax.set_ylabel('frequency')
+    ax.set_title(f'Merton Jump diffusion: Distribution of {symbol} prices')
     return
 
 
-def plotMertonLogReturns(SMerton, symbol):
+def plotMertonLogReturns(SMerton, symbol, ax=None):
+    if ax is None:
+        ax = plt.gca()
     log_returns = np.log(SMerton[1:] / SMerton[:-1])
     log_returns = log_returns.flatten()
-    sns.kdeplot(log_returns, label='Log Returns')
-    plt.xlabel('Log Return')
-    plt.ylabel('Density')
-    plt.title(f'Distribution of Merton Log Returns for {symbol}')
-    plt.legend()
-    plt.show()
+    sns.kdeplot(log_returns, label='Log Returns', ax=ax)
+    ax.set_xlabel('Log Return')
+    ax.set_ylabel('Density')
+    ax.set_title('Merton')
+    ax.legend()
     return

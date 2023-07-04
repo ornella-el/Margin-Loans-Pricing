@@ -27,35 +27,38 @@ def BlackScholesPath(T, days, N, sigma, r, S0):
 
 
 # plot the price paths
-def plotBSPath(Spaths, symbol):
+def plotBSPath(Spaths, symbol, ax=None):
+    if ax is None:
+        ax = plt.gca()
     plt.figure(figsize=(10, 6))
-    plt.plot(Spaths)
-    plt.xlabel('Time (days)')
-    plt.ylabel('Price')
-    plt.title(f'B&S Model Price Paths for {symbol}')
-    plt.show()
+    ax.plot(Spaths)
+    ax.set_xlabel('Time (days)')
+    ax.set_ylabel('Price')
+    ax.set_title(f'B&S Model Price Paths for {symbol}')
     return
 
 
 # plot the distribution of prices average
-def plotBSDist(Spaths, symbol):
+def plotBSDist(Spaths, symbol, ax=None):
+    if ax is None:
+        ax = plt.gca()
     avg_path = np.mean(Spaths, axis=0)
-    plt.hist(avg_path, bins='auto')
-    plt.xlabel('price')
-    plt.ylabel('frequency')
-    plt.title(f'B&S model: Lognormal distribution of {symbol} prices')
-    plt.show()
+    ax.hist(avg_path, bins='auto')
+    ax.set_xlabel('price')
+    ax.set_ylabel('frequency')
+    ax.set_title(f'B&S model: Lognormal distribution of {symbol} prices')
     return
 
 
-def plotBSLogReturns(Spaths, symbol):
+def plotBSLogReturns(Spaths, symbol, ax=None):
+    if ax is None:
+        ax = plt.gca()
     log_returns = np.log(Spaths[1:] / Spaths[:-1])
     log_returns = log_returns.flatten()
-    sns.kdeplot(log_returns, label='Log Returns')
-    plt.xlabel('Log Return')
-    plt.ylabel('Density')
-    plt.title(f'Distribution of BS Log Returns for {symbol}')
-    plt.legend()
-    plt.show()
+    sns.kdeplot(log_returns, label='Log Returns', ax=ax)
+    ax.set_xlabel('Log Return')
+    ax.set_ylabel('Density')
+    ax.set_title(f'Black and Scholes')
+    ax.legend()
     return
 
