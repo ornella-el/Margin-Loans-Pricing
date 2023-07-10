@@ -51,7 +51,7 @@ class Merton_pricer():
             r_k = self.r - self.lambd * (mean - 1) + (k * np.log(mean)) / self.ttm
             sigma_k = np.sqrt(self.sigma ** 2 + (k * self.stdJ ** 2) / self.ttm)
             k_fact = factorial(k)
-            V += (np.exp(-mean * self.lambd * self.ttm) * (mean * self.lambd * self.ttm) ** k) / k_fact * \
+            V += (np.exp(-mean * self.lambd * self.ttm) * np.power(mean * self.lambd * self.ttm, k)) / k_fact *\
                  BS_pricer.BlackScholes(type_o='call', S0=self.S0, K=self.K, ttm=self.ttm,
                                         r=r_k, q=self.q, sigma=sigma_k)
         return V
