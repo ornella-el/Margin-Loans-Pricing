@@ -16,6 +16,7 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import scipy.stats as ss
 
 
 def KouPath(T, days, N, sigma, r, lambd, p, eta1, eta2, S0):
@@ -77,5 +78,24 @@ def plotKouLogReturns(SKou, symbol, ax=None):
     ax.set_xlabel('Log Return')
     ax.set_ylabel('Density')
     ax.set_title(f'Kou')
+    ax.legend()
+    return
+
+
+def plotKouAtFixedTime(SKou, time, symbol, ax):
+    if ax is None:
+        ax = plt.gca()
+    fixed_values = SKou[time, :]
+
+    # Plotting the histogram
+    hist, bins, _ = ax.hist(fixed_values, bins=30, density=True, alpha=0.9, label='Histogram')
+
+    # Plotting the KDE approx
+    sns.kdeplot(fixed_values, color='r', label='Approximation', ax=ax)
+
+    ax.set_xlabel(f'{symbol} price after T = {time+1} days')
+    ax.set_ylabel('Probability Density')
+    ax.set_title(f'Kou Price at T ={time + 1}')
+    ax.grid(True)
     ax.legend()
     return

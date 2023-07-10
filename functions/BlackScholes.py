@@ -14,6 +14,7 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import scipy.stats as ss
 
 
 def BlackScholesPath(T, days, N, sigma, r, S0):
@@ -62,3 +63,21 @@ def plotBSLogReturns(Spaths, symbol, ax=None):
     ax.legend()
     return
 
+
+def plotBSAtFixedTime(SBlackScholes, time, symbol, ax):
+    if ax is None:
+        ax = plt.gca()
+    fixed_values = SBlackScholes[time, :]
+
+    # Plotting the histogram
+    hist, bins, _ = ax.hist(fixed_values, bins=30, density=True, alpha=0.7, label='Histogram')
+
+    # Plotting the KDE approx
+    sns.kdeplot(fixed_values, color='r', label='Approximation', ax=ax)
+
+    ax.set_xlabel(f'{symbol} price after T = {time+1} days')
+    ax.set_ylabel('Probability Density')
+    ax.set_title(f'Black-Scholes Price at T ={time + 1}')
+    ax.grid(True)
+    ax.legend()
+    return

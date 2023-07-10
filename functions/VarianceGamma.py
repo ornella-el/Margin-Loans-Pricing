@@ -15,12 +15,13 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import scipy.stats as ss
 # import matplotlib
 # matplotlib.use('Agg')
 from scipy.stats import gamma, norm
 
 
-def VarianceGammaPath1(T, days, N, sigma, r, nu, theta, S0):
+def VarianceGammaPath1(T, days, N, sigma, r, theta, nu, S0):
     dt = T / days
     size = (days, N)
     SVarGamma = np.zeros(size)
@@ -39,7 +40,7 @@ def VarianceGammaPath1(T, days, N, sigma, r, nu, theta, S0):
 
 
 # Simulate variance gamma as the difference of two gammas
-def VarianceGammaPath2(T, days, N, sigma, r, nu, theta, S0):
+def VarianceGammaPath2(T, days, N, sigma, r, theta, nu, S0):
     dt = T / days
     size = (days, N)
     SVarGamma = np.zeros(size)
@@ -57,14 +58,14 @@ def VarianceGammaPath2(T, days, N, sigma, r, nu, theta, S0):
 
 
 # plot the price paths
-def plotVGPath(SVG, symbol, method, ax=None):
+def plotVGPath(SVG, symbol, method, theta, nu, ax=None):
     if ax is None:
         ax = plt.gca()
     plt.figure(figsize=(8, 6))
     ax.plot(SVG)
     ax.set_xlabel('Time (days)')
     ax.set_ylabel('Price')
-    ax.set_title(f'Variance Gamma Simulated  Paths for {symbol} with {method}')
+    ax.set_title(f'VG PATHS for {symbol} with {method}, theta = {theta}, nu = {nu}')
     # plt.savefig(f'VG_allpaths_{method}.png')
     return
 
@@ -102,6 +103,27 @@ def find_moment(order, theta, nu, sigma):
     elif order == 3:
         return 3 * theta ** 3 * nu * (1 - 4 * sigma ** 2 * nu) + 6 * theta ** 3 * sigma ** 2 * nu ** 2
     elif order == 4:
-        return 3 * theta ** 4 * (1 - 10 * nu * sigma ** 2 + 16 * nu ** 2 * sigma ** 4) + 12 * theta ** 4 * sigma ** 2 * nu * (1 - 4 * nu * sigma ** 2) + 24 * theta ** 4 * sigma ** 4 * nu ** 2
+        return 3 * theta ** 4 * (
+                    1 - 10 * nu * sigma ** 2 + 16 * nu ** 2 * sigma ** 4) + 12 * theta ** 4 * sigma ** 2 * nu * (
+                           1 - 4 * nu * sigma ** 2) + 24 * theta ** 4 * sigma ** 4 * nu ** 2
     else:
         return 0
+
+
+def plotVGAtFixedTime(SVarGamma, time, symbol, ax):
+    if ax is None:
+        ax = plt.gca()
+    fixed_values = SVarGamma[time, :]
+
+    # Plotting the histogram
+    hist, bins, _ = ax.hist(fixed_values, bins=30, density=True, alpha=0.9, label='Histogram')
+
+    # Plotting the KDE approx
+    sns.kdeplot(fixed_values, color='r', label='Approximation', ax=ax)
+
+    ax.set_xlabel(f'{symbol} price after T = {time+1} days')
+    ax.set_ylabel('Probability Density')
+    ax.set_title(f'Variance Gamma Price at T ={time + 1}')
+    ax.grid(True)
+    ax.legend()
+    return

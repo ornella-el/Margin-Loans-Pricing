@@ -14,6 +14,7 @@
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
+import scipy.stats as ss
 
 
 def MertonPath(T, days, N, sigma, r, lambd, jump_mean, jump_std, S0):
@@ -69,3 +70,23 @@ def plotMertonLogReturns(SMerton, symbol, ax=None):
     ax.set_title('Merton')
     ax.legend()
     return
+
+
+def plotMertonAtFixedTime(SMerton, time, symbol, ax):
+    if ax is None:
+        ax = plt.gca()
+    fixed_values = SMerton[time, :]
+
+    # Plotting the histogram
+    hist, bins, _ = ax.hist(fixed_values, bins=30, density=True, alpha=0.9, label='Histogram')
+
+    # Plotting the KDE approx
+    sns.kdeplot(fixed_values, color='r', label='Approximation', ax=ax)
+
+    ax.set_xlabel(f'{symbol} price after T = {time+1} days')
+    ax.set_ylabel('Probability Density')
+    ax.set_title(f'Merton Price at T ={time + 1}')
+    ax.grid(True)
+    ax.legend()
+    return
+
