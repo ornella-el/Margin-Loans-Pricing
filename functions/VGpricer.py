@@ -5,18 +5,43 @@ import scipy.special as ssp
 import scipy.stats as ss
 from scipy.integrate import quad
 from functools import partial
+import seaborn as sns
+import matplotlib.pyplot as plt
 from functions.FFT import fft_Lewis
 from functions.CFs import cf_VG
 
+# %%%%%%%%%%%%%%%%%%%%%%%       Variance Gamma Model       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+"""
+    S[t] = S[t-1] * exp((r + omega)t + theta*G(t) + sigma* sqrt(G(t))*Z(t)
+    S[t]: the stock price at time t
+    S[t-1]: the stock price at the previous time step
+    r: risk-free rate
+    sigma: volatility of the log-returns
+    dt: is the time step size (ttm / days)
+    G[t]: gamma process with shape parameter theta*dt and scale parameter 1
+    Z: standard normal random variable
+    theta: the drift of the gamma process
+    nu: the variance of the gamma process
+"""
 
-class VG_pricer():
-    """
-        Closed Formula.
+# %%%%%%%%%%%%%%%%%%%%%%%           Option pricing           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+""" 
+K: the strike price of the option
+C0: the price of a European call option at time t = 0
+ttm: time-to maturity (expiry date)
+exercise: european or american
+type: 'call' or 'put' 
+N: number of simulated paths
+
+    Closed Formula (CALL AND PUT):
         Call(S0, K, T) = S0 exp(-rt)* psi(a1, b1, gamma) - k exp(-rt)*psi(a2, b2, gamma)
         psi(a1, b1, gamma): defined in terms of K_v(z) and Phi(γ,1-γ,1+γ; (1+u)/2, -sign(a) c(1+u))
         K_v(z): modified bessel function of the second kind
         Φ(γ,1-γ,1+γ; (1+u)/2, -sign(a) c(1+u)): integral representation Humbert
-    """
+
+"""
+
+class VG_pricer():
 
     def __init__(self, S0, K, ttm, r, q, sigma, theta, nu, exercise):
         self.S0 = S0  # current STOCK price
@@ -29,14 +54,160 @@ class VG_pricer():
         self.nu = nu  # ν: variance of gamma process
         self.exercise = exercise
 
-    def payoff_f(self, St, type_o):
+    def VarianceGammaPath1(self, days, N):
+        dt = self.ttm / days
+        size = (days, N)
+        SVarGamma = np.zeros(size)
+        SVarGamma[0] = self.S0
+        for t in range(1, days):
+            Z = np.random.normal(size=(N,))
+            # U = np.random.uniform(0, 1, size=(N,))
+            deltaG = np.random.gamma(shape=dt / self.nu, scale=self.nu, size=(N,))
+            h = self.theta * deltaG + self.sigma * np.sqrt(deltaG) * Z
+            # h = theta * G + sigma * np.sqrt(G) * norm.ppf(U)
+            omega = (np.log(1 - self.nu * self.theta - 0.5 * self.nu * pow(self.sigma, 2))) / self.nu
+            # SVarGamma[t] = SVarGamma[t - 1] * np.exp((r - 0.5 * sigma ** 2 + omega) * dt + h * dt)
+            SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r - 0.5 * self.sigma ** 2 + omega) * dt + h)
+
+        return SVarGamma
+
+    # Simulate variance gamma as the difference of two gammas
+    def VarianceGammaPath2(self, days, N):
+        dt = self.ttm / days
+        size = (days, N)
+        SVarGamma = np.zeros(size)
+        SVarGamma[0] = self.S0
+        for t in range(1, days):
+            mu_p = 0.5 * np.sqrt(self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) + 0.5 * self.theta  # positive jump mean
+            mu_n = 0.5 * np.sqrt(self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) - 0.5 * self.theta  # negative jump mean
+            nu_p = mu_p ** 2 * self.nu  # positive jump variamce
+            nu_n = mu_n ** 2 * self.nu  # negative jump variance
+            omega = (np.log(1 - self.theta * self.nu - 0.5 * self.nu * self.sigma ** 2)) / self.nu
+            Gamma_p = np.random.gamma(dt / self.nu, mu_p * self.nu, size=(N,))
+            Gamma_n = np.random.gamma(dt / self.nu, mu_n * self.nu, size=(N,))
+            SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r + omega) * dt + Gamma_p - Gamma_n)
+        return SVarGamma
+
+    # plot the price paths
+    def plotVGPath(self, SVG, symbol, method, ax=None):
+        if ax is None:
+            ax = plt.gca()
+        plt.figure(figsize=(8, 6))
+        ax.plot(SVG)
+        ax.set_xlabel('Time (days)')
+        ax.set_ylabel('Price')
+        ax.set_title(f'VG PATHS for {symbol} with {method}, theta = {self.theta}, nu = {self.nu}')
+        # plt.savefig(f'VG_allpaths_{method}.png')
+        return
+
+    # plot the distribution of prices average
+    @staticmethod
+    def plotVGDist(SVG, symbol, ax=None):
+        if ax is None:
+            ax = plt.gca()
+        avg_path = np.mean(SVG, axis=0)
+        ax.hist(avg_path, bins=30)
+        ax.set_xlabel('price')
+        ax.set_ylabel('frequency')
+        ax.set_title(f'Variance Gamma: Distribution of {symbol} prices')
+        return
+
+    @staticmethod
+    def plotVGLogReturns(SVG, symbol, ax=None):
+        if ax is None:
+            ax = plt.gca()
+        log_returns = np.log(SVG[1:] / SVG[:-1])
+        log_returns = log_returns.flatten()
+        sns.kdeplot(log_returns, label='Log Returns', ax=ax)
+        ax.set_xlabel('Log Return')
+        ax.set_ylabel('Density')
+        ax.set_title(f'Variance Gamma')
+        ax.legend()
+        return
+
+    def find_moment(self, order):
+        if order == 1:
+            return self.theta * (1 - self.nu * self.sigma ** 2)
+        elif order == 2:
+            return self.theta ** 2 * (1 - 2 * self.nu * self.sigma ** 2) + 2 * self.sigma ** 2 * self.theta ** 2 * self.nu ** 2
+        elif order == 3:
+            return 3 * self.theta ** 3 * self.nu * (1 - 4 * self.sigma ** 2 * self.nu) + 6 * self.theta ** 3 * self.sigma ** 2 * self.nu ** 2
+        elif order == 4:
+            return 3 * self.theta ** 4 * (
+                    1 - 10 * self.nu * self.sigma ** 2 + 16 * self.nu ** 2 * self.sigma ** 4) + 12 * self.theta ** 4 * self.sigma ** 2 * self.nu * (
+                           1 - 4 * self.nu * self.sigma ** 2) + 24 * self.theta ** 4 * self.sigma ** 4 * self.nu ** 2
+        else:
+            return 0
+
+    @staticmethod
+    def plotVGAtFixedTime(SVarGamma, time, symbol, ax):
+        if ax is None:
+            ax = plt.gca()
+        fixed_values = SVarGamma[time, :]
+
+        # Plotting the histogram
+        hist, bins, _ = ax.hist(fixed_values, bins=30, density=True, alpha=0.9, label='Histogram')
+
+        # Plotting the KDE approx
+        sns.kdeplot(fixed_values, color='r', label='Approximation', ax=ax)
+
+        # Calculate the mean, standard deviation, and quantile
+        mean_price = np.mean(fixed_values)
+        std_dev = np.std(fixed_values)
+        quantile_95 = np.percentile(fixed_values, 95)
+
+        # Display the mean, standard deviation, and quantile on the plot
+        ax.axvline(mean_price, color='g', linestyle='--', label='Mean Price')
+        ax.axvline(mean_price + std_dev, color='b', linestyle='--', label='Mean ± Std Dev')
+        ax.axvline(mean_price - std_dev, color='b', linestyle='--', label='Mean ± Std Dev')
+        ax.axvline(quantile_95, color='m', linestyle='--', label='95% Quantile')
+
+        ax.set_xlabel(f'{symbol} price after T = {time + 1} days')
+        ax.set_ylabel('Probability Density')
+        ax.set_title(f'Variance Gamma Price at T ={time + 1}')
+        ax.grid(True)
+        ax.legend()
+        return
+
+    def payoff_vanilla(self, St, type_o):
+        """
+        Payoff of the plain vanilla options: european put and call
+        """
         if type_o == 'call':
-            payoff = np.maximum(St - self.K, 0)
+            return self.payoff_call(St)
         elif type_o == 'put':
-            payoff = np.maximum(self.K - St, 0)
+            return self.payoff_put(St)
         else:
             raise ValueError('Please select "call" or "put" type.')
+
+    def payoff_call(self, St):
+        return np.maximum(St - self.K, 0)
+
+    def payoff_put(self, St):
+        return np.maximum(self.K - St, 0)
+
+    # DONE: implement the payoff
+    def payoff_otko(self, path, K1, K2):
+        """
+        Payoff of the One Touch Knock Out Daily Cliquet Options
+        K1 = 'Knock-Out' barrier: let the option expire
+        k2 = 'One-Touch' barrier: let the seller receive a payoff for the downward jump
+        """
+        payoff = 0
+        K1 = K1 / 100
+        K2 = K2 / 100
+        returns = path[1:] / path[:-1]
+        for Rt in returns:
+            if Rt > K1:
+                payoff = 0
+            elif K2 < Rt <= K1:
+                payoff = (K1 - Rt)/10
+                return payoff
+            elif Rt <= K2:
+                payoff = (K1 - K2)/10
+                return payoff
         return payoff
+
 
     def omega(self):        # martingale correction
         return - np.log(1 - self.theta * self.nu - (self.sigma ** 2 * self.nu) / 2) / self.nu
