@@ -5,6 +5,7 @@ import scipy.special as ssp
 import seaborn as sns
 import matplotlib.pyplot as plt
 import math
+from scipy.optimize import newton
 
 # %%%%%%%%%%%%%%%%%%%%%%%             Kou Model            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 """
@@ -40,7 +41,10 @@ N: number of simulated paths
 
 """
 
-
+# %%%%%%%%%%%%%%%%%%%%%%%           REFERENCES           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+"""
+> RISK NEUTRAL COEFF. https://core.ac.uk/download/pdf/48539543.pdf
+"""
 class Kou_pricer():
 
     def __init__(self, S0, K, ttm, r, sigma, lambd, p, eta1, eta2, exercise):
@@ -62,6 +66,10 @@ class Kou_pricer():
         SKou = np.zeros(size)
         SKou[0] = self.S0
         for t in range(1, days):
+
+            # find risk-neutral parameters
+            zeta = self.q * self.eta2 / (self.eta2 + 1) + self.p * self.eta1 / (self.eta1 - 1) - 1
+
             # Random numbers generation
             Z = np.random.normal(size=(N,))
             Nj = np.random.poisson(lam=self.lambd * dt, size=(N,))
@@ -69,12 +77,12 @@ class Kou_pricer():
             # Generate jump sizes J
             U = np.random.uniform(size=(N,))  # Generate uniform random variables
             J = np.zeros_like(U)  # Initialize jump sizes
-            J[U < self.p] = -np.log(1 - U[U < self.p]) / self.eta1  # Negative jumps
-            J[U >= self.p] = np.log(U[U >= self.p]) / self.eta2  # Positive jumps
+            J[U < self.p] = -np.log(1 - U[U < self.p]) / self.eta2  # Negative jumps
+            J[U >= self.p] = np.log(U[U >= self.p]) / self.eta1  # Positive jumps
 
             # Find components
             jump_component = J * Nj
-            drift_component = (self.r - 0.5 * self.sigma ** 2) * dt
+            drift_component = (self.r - 0.5 * self.sigma ** 2 - self.lambd*zeta) * dt
             diffusion_component = self.sigma * np.sqrt(dt) * Z
 
             # New prices computation
@@ -173,20 +181,17 @@ class Kou_pricer():
         k2 = 'One-Touch' barrier: let the seller receive a payoff for the downward jump
         """
         payoff = 0
-        K1 = K1 / 100
-        K2 = K2 / 100
         returns = path[1:] / path[:-1]
         for Rt in returns:
             if Rt > K1:
                 payoff = 0
             elif K2 < Rt <= K1:
-                payoff = (K1 - Rt)/10
+                payoff = (K1 - Rt)
                 return payoff
             elif Rt <= K2:
-                payoff = (K1 - K2)/10
+                payoff = (K1 - K2)
                 return payoff
         return payoff
-
 
     # Three term recursion (Abramowitz and Stegun 1972)
     def Hh(self, n, x):
@@ -329,5 +334,20 @@ class Kou_pricer():
         Y3 = self.Pi(0, lambd) * scs.norm.cdf(-(a - mu * T) / (sigma * np.sqrt(T)))
 
         return Y1 + Y2 + Y3
+
+    def closed_formula_otko(self, K1, K2):
+        beta = np.log(K1)
+        phi = self.lambd * self.q * np.exp(beta*self.eta2)
+        den = self.r + phi
+        num = (1 - np.exp(-self.T * den))
+        Int = self.lambd*self.q / (1+self.eta2) * (K1**(1+self.eta2) - K2**(1+self.eta2))
+        return Int * num / den * 100
+
+    # REF: https: // www.researchgate.net / publication / 5143311_Risk - Neutral_and_Actual_Default_Probabilities_with_an_Endogenous_Bankruptcy_Jump - Diffusion_Model
+    def Esscher_measure(self):
+        def func(h):
+            return self.r - h*self.sigma**2 - self.lambd*((self.p*self.eta1/(self.eta1-h)) + (self.q*self.eta2/(self.eta2+h)) -
+                                                          self.p*self.eta1/(self.eta1-1-h) - (self.q * self.eta2 / self.eta2 + 1 +h))
+        return newton(func, x0=0)
 
 # REFERENCES: S. G. Kou, (2002) A Jump-Diffusion Model for Option Pricing. Management Science 48(8):1086-1101.

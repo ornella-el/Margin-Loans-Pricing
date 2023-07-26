@@ -137,15 +137,18 @@ class BS_Pricer:
         """
         payoff = 0
         returns = path[1:] / path[:-1]
+        K1 = K1
+        K2 = K2
         for Rt in returns:
             if Rt > K1:
                 payoff = 0
             elif K2 < Rt <= K1:
-                payoff = (K1 - Rt)/10
+                payoff = (K1 - Rt)
                 return payoff
             elif Rt <= K2:
-                payoff = (K1 - K2)/10
+                payoff = (K1 - K2)
                 return payoff
+
         return payoff
 
 

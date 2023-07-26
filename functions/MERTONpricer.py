@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats as ss
 import seaborn as sns
+from scipy.integrate import quad
 import matplotlib.pyplot as plt
 from functions.BSpricer import BS_Pricer
 from math import factorial
@@ -56,12 +57,13 @@ class Merton_pricer():
         SMerton = np.zeros(size)
         SMerton[0] = self.S0
         for t in range(1, days):
-            # Random numbers generation
-            Z = np.random.normal(size=(N,))
+            mean = np.exp(self.meanJ + self.stdJ ** 2 / 2)
+            Z = np.random.normal(size=(N,))  # Brownian motion, diffusion component
             Nj = np.random.poisson(lam=self.lambd * dt, size=(N,))
-            J = np.random.normal(self.meanJ, self.stdJ, size=(N,))
+            J = np.random.normal(self.meanJ - self.lambd * self.stdJ ** 2 / 2, self.stdJ, size=(N,))
             jump_component = (np.exp(J) - 1) * Nj
-            drift_component = (self.r - 0.5 * self.sigma ** 2) * dt
+            drift_component = (self.r - self.lambd * (
+                        mean - 1) - 0.5 * self.sigma ** 2) * dt  # added risk-neutral adjustment
             diffusion_component = self.sigma * np.sqrt(dt) * Z
             # New prices computation
             SMerton[t] = SMerton[t - 1] * np.exp(drift_component + diffusion_component + jump_component)
@@ -156,17 +158,17 @@ class Merton_pricer():
         k2 = 'One-Touch' barrier: let the seller receive a payoff for the downward jump
         """
         payoff = 0
-        K1 = K1 / 100
-        K2 = K2 / 100
+        K1 = K1
+        K2 = K2
         returns = path[1:] / path[:-1]
         for Rt in returns:
             if Rt > K1:
                 payoff = 0
             elif K2 < Rt <= K1:
-                payoff = (K1 - Rt)/10
+                payoff = (K1 - Rt)
                 return payoff
             elif Rt <= K2:
-                payoff = (K1 - K2)/10
+                payoff = (K1 - K2)
                 return payoff
         return payoff
 
@@ -202,6 +204,50 @@ class Merton_pricer():
                  BS_Pricer.BlackScholes(type_o='put', S0=self.S0, K=self.K, ttm=self.ttm,
                                         r=r_k, q=self.q, sigma=sigma_k)
         return V
+
+    # QUELLA DI DANILO
+    def closed_formula_otko(self, K1, K2):
+        tol = 1e-6
+        phi1 = ss.norm.cdf(np.log(K1), self.meanJ, self.stdJ)
+        phi2 = ss.norm.cdf(np.log(K2 + tol), self.meanJ, self.stdJ)
+        phi4 = ss.norm.cdf(np.log(K1) - self.stdJ ** 2, self.meanJ, self.stdJ)
+        phi5 = ss.norm.cdf(np.log(K2 + tol) - self.stdJ ** 2, self.meanJ, self.stdJ)
+        den = self.r + self.lambd * phi1
+        num = (1 - np.exp(-self.ttm * den))
+        Int = self.lambd * (K1 * phi1 - K2 * phi2 - (np.exp(self.meanJ + self.stdJ ** 2 / 2) * (phi4 - phi5)))
+        return Int * num / den * 100
+
+    def compute_integral(self, K1, K2):
+        def integrand(x):
+            return (K2 - np.exp(x)) * self.lambd * ss.norm.pdf(x, self.meanJ, self.stdJ)
+
+        if K2 != 0:
+            result = quad(integrand, np.log(K2), np.log(K1))
+            return result[0]
+        result = quad(integrand, 0, np.log(K1))
+        return result[0]
+
+    # quella mia integrata
+    def closed_formula_otko2(self, K1, K2):
+
+        # for me K1 = high strike, K2 = low strike
+        # phi1 = phi3 so I'll use phi1
+        phi1 = ss.norm.cdf(np.log(K1), self.meanJ, self.stdJ)
+        if K2 != 0:
+            I_go = (K1 - K2) * self.lambd * ss.norm.cdf(np.log(K2), self.meanJ, self.stdJ) + self.compute_integral(K1,
+                                                                                                                   K2)
+        else:
+            I_go = self.compute_integral(K1, K2)
+        num = (1 - np.exp(-self.ttm * (self.r + self.lambd * phi1)))
+        den = self.r + self.lambd * phi1
+        # print(I_go, num, den)
+
+        return I_go * num / den
+
+        # phi2 = ss.norm.cdf(np.log(K2), self.meanJ, self.stdJ)
+        # phi4 = ss.norm.cdf((np.log(K1) - self.meanJ) / self.stdJ - self.stdJ)
+        # phi5 = ss.norm.cdf((np.log(K2) - self.meanJ) / self.stdJ - self.stdJ)
+        # I_go = self.lambd * (K1 * phi1 - K2 * phi2 - np.exp(self.meanJ + self.stdJ ** 2 / 2) * (phi4 - phi5))
 
 # REFERENCES: https://www.codearmo.com/python-tutorial/merton-jump-diffusion-model-python
 #             https://github.com/Robin-Guilliou/Option-Pricing/blob/main/European%20Options/Merton%20Jump%20Diffusion/merton_jump_analytical.ipynb

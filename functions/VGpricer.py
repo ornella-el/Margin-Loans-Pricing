@@ -41,6 +41,7 @@ N: number of simulated paths
 
 """
 
+
 class VG_pricer():
 
     def __init__(self, S0, K, ttm, r, q, sigma, theta, nu, exercise):
@@ -53,6 +54,14 @@ class VG_pricer():
         self.theta = theta  # θ: Drift of gamma process
         self.nu = nu  # ν: variance of gamma process
         self.exercise = exercise
+
+        # PARAMETERS OF THE 2ND REPRESENTATION (DIFF OF GAMMAS)
+        self.mu_p = 0.5 * np.sqrt(
+            self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) + 0.5 * self.theta  # positive jump mean
+        self.mu_n = 0.5 * np.sqrt(
+            self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) - 0.5 * self.theta  # negative jump mean
+        self.nu_p = self.mu_p ** 2 * self.nu  # positive jump variamce
+        self.nu_n = self.mu_n ** 2 * self.nu  # negative jump variance
 
     def VarianceGammaPath1(self, days, N):
         dt = self.ttm / days
@@ -67,7 +76,7 @@ class VG_pricer():
             # h = theta * G + sigma * np.sqrt(G) * norm.ppf(U)
             omega = (np.log(1 - self.nu * self.theta - 0.5 * self.nu * pow(self.sigma, 2))) / self.nu
             # SVarGamma[t] = SVarGamma[t - 1] * np.exp((r - 0.5 * sigma ** 2 + omega) * dt + h * dt)
-            SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r - 0.5 * self.sigma ** 2 + omega) * dt + h)
+            SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r + omega) * dt + h)
 
         return SVarGamma
 
@@ -78,13 +87,9 @@ class VG_pricer():
         SVarGamma = np.zeros(size)
         SVarGamma[0] = self.S0
         for t in range(1, days):
-            mu_p = 0.5 * np.sqrt(self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) + 0.5 * self.theta  # positive jump mean
-            mu_n = 0.5 * np.sqrt(self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) - 0.5 * self.theta  # negative jump mean
-            nu_p = mu_p ** 2 * self.nu  # positive jump variamce
-            nu_n = mu_n ** 2 * self.nu  # negative jump variance
             omega = (np.log(1 - self.theta * self.nu - 0.5 * self.nu * self.sigma ** 2)) / self.nu
-            Gamma_p = np.random.gamma(dt / self.nu, mu_p * self.nu, size=(N,))
-            Gamma_n = np.random.gamma(dt / self.nu, mu_n * self.nu, size=(N,))
+            Gamma_p = np.random.gamma(dt / self.nu, self.mu_p * self.nu, size=(N,))
+            Gamma_n = np.random.gamma(dt / self.nu, self.mu_n * self.nu, size=(N,))
             SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r + omega) * dt + Gamma_p - Gamma_n)
         return SVarGamma
 
@@ -96,7 +101,10 @@ class VG_pricer():
         ax.plot(SVG)
         ax.set_xlabel('Time (days)')
         ax.set_ylabel('Price')
-        ax.set_title(f'VG PATHS for {symbol} with {method}, theta = {self.theta}, nu = {self.nu}')
+        if method == 'Time changed BM':
+            ax.set_title(f'VG PATHS for {symbol} with {method}, theta = {round(self.theta,3)}, nu = {round(self.nu,3)}')
+        else:
+            ax.set_title(f'VG PATHS for {symbol} with {method}, mu_p = {round(self.mu_p,3)}, mu_n = {round(self.mu_n,3)}')
         # plt.savefig(f'VG_allpaths_{method}.png')
         return
 
@@ -129,9 +137,11 @@ class VG_pricer():
         if order == 1:
             return self.theta * (1 - self.nu * self.sigma ** 2)
         elif order == 2:
-            return self.theta ** 2 * (1 - 2 * self.nu * self.sigma ** 2) + 2 * self.sigma ** 2 * self.theta ** 2 * self.nu ** 2
+            return self.theta ** 2 * (
+                    1 - 2 * self.nu * self.sigma ** 2) + 2 * self.sigma ** 2 * self.theta ** 2 * self.nu ** 2
         elif order == 3:
-            return 3 * self.theta ** 3 * self.nu * (1 - 4 * self.sigma ** 2 * self.nu) + 6 * self.theta ** 3 * self.sigma ** 2 * self.nu ** 2
+            return 3 * self.theta ** 3 * self.nu * (
+                    1 - 4 * self.sigma ** 2 * self.nu) + 6 * self.theta ** 3 * self.sigma ** 2 * self.nu ** 2
         elif order == 4:
             return 3 * self.theta ** 4 * (
                     1 - 10 * self.nu * self.sigma ** 2 + 16 * self.nu ** 2 * self.sigma ** 4) + 12 * self.theta ** 4 * self.sigma ** 2 * self.nu * (
@@ -194,22 +204,21 @@ class VG_pricer():
         k2 = 'One-Touch' barrier: let the seller receive a payoff for the downward jump
         """
         payoff = 0
-        K1 = K1 / 100
-        K2 = K2 / 100
+        K1 = K1
+        K2 = K2
         returns = path[1:] / path[:-1]
         for Rt in returns:
             if Rt > K1:
                 payoff = 0
             elif K2 < Rt <= K1:
-                payoff = (K1 - Rt)/10
+                payoff = (K1 - Rt)
                 return payoff
             elif Rt <= K2:
-                payoff = (K1 - K2)/10
+                payoff = (K1 - K2)
                 return payoff
         return payoff
 
-
-    def omega(self):        # martingale correction
+    def omega(self):  # martingale correction
         return - np.log(1 - self.theta * self.nu - (self.sigma ** 2 * self.nu) / 2) / self.nu
 
     def closed_formula_call(self, K):
@@ -307,6 +316,88 @@ class VG_pricer():
     def cf_VG(self, u, t=1, mu=0, theta=-0.1, sigma=0.2, nu=0.1):
         return np.exp(
             t * (1j * mu * u - np.log(1 - 1j * theta * nu * u + 0.5 * nu * sigma ** 2 * u ** 2) / nu))
+
+    #  https://www.impan.pl/swiat-matematyki/notatki-z-wyklado~/tankov2.pdf
+    def closed_formula_otko(self, K1, K2):  # con incomplete gamma function integral, versione MIA (integrata)
+        c = 1 / self.nu
+        lamd1 = (np.sqrt(
+            self.theta ** 2 + 2 * self.sigma ** 2 / self.nu) / self.sigma ** 2) + self.theta / self.sigma ** 2
+        phi = ssp.gammainc(0, -np.log(K1) * lamd1) * c
+        num = (1 - np.exp(-self.ttm * (self.r + phi)))
+        den = self.r + phi
+        Int1 = (K1 - K2) * ssp.gammainc(0, -np.log(K2) * lamd1) * c
+        Int2 = c * K1 * (ssp.gammainc(0, -np.log(K1) * lamd1) - ssp.gammainc(0, -np.log(K2) * lamd1)) + \
+               c * (ssp.gammainc(0, -np.log(K1) * (1 + lamd1)) - ssp.gammainc(0, -np.log(K2) * (1 + lamd1)))
+
+        print(Int1, Int2, num, den)
+        return (Int1 + Int2) * num / den
+
+    def closed_formula_otko2(self, K1, K2):  # con incomplete gamma function integral, versione solo GAP (TANKOV)
+        c = 1 / self.nu
+        lamd1 = (np.sqrt(
+            self.theta ** 2 + 2 * self.sigma ** 2 / self.nu) / self.sigma ** 2) - self.theta / self.sigma ** 2
+        phi = ssp.gammainc(0, -np.log(K1) * lamd1) * c
+        num = (1 - np.exp(-self.ttm * (self.r + phi)))
+        den = self.r + phi
+        Int = c * K1 * (ssp.gammainc(0, -np.log(K1) * lamd1)) + (c * ssp.gammainc(0, -np.log(K1) * (1 + lamd1)))
+        # print(Int, num, den)
+        return Int * num / den
+
+    def closed_formula_otko3(self, K1, K2):  # con exponential integral, versione solo GAP (TANKOV)
+        tol = 1e-6
+        c = 1 / self.nu
+        lamd1 = (np.sqrt(
+            self.theta ** 2 + 2 * self.sigma ** 2 / self.nu) / self.sigma ** 2) - self.theta / self.sigma ** 2
+        phi = -c * ssp.expi(lamd1 * np.log(K1))
+        num = (1 - np.exp(-self.ttm * (self.r + phi)))
+        den = self.r + phi
+        Int = c * (ssp.expi(np.log(K1) * (1+lamd1))) - (c * ssp.expi(np.log(K2+tol) * (1 + lamd1)))
+        # print(Int, num, den)
+        return -Int * num / den * 100
+
+    def closed_formula_otko4(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
+        tol = 1e-6
+        c = 1 / self.nu
+        lamd1 = (np.sqrt(
+            self.theta ** 2 + 2 * self.sigma ** 2 / self.nu) / self.sigma ** 2) + self.theta / self.sigma ** 2
+        phi = c * ssp.expi(lamd1 * np.log(K1))
+        num = (1 - np.exp(-self.ttm * (self.r + phi)))
+        den = self.r + phi
+        Int1 = c*(K1 - K2) * ssp.expi(np.log(K2 + tol) * lamd1)
+        # Int2 = c * (ssp.expi(np.log(K1) * lamd1) - ssp.expi(np.log(K2 + tol) * lamd1)) + \
+        #       c * (ssp.expi(np.log(K1) * (1 + lamd1)) - ssp.expi(np.log(K2 + tol) * (1 + lamd1)))
+        Int2 = c * (ssp.expi(np.log(K1) * (1 + lamd1)) - ssp.expi(np.log(K2 + tol) * (1 + lamd1)))
+
+        # print(Int1, Int2, num, den)
+        return -Int2  * num / den * 100
+
+    def closed_formula_otko5(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
+        tol = 1e-6
+        c_n = self.mu_n ** 2 / self.nu_n
+        lambd_n = c_n / self.mu_n
+        phi = -c_n * ssp.expi(lambd_n * np.log(K1))
+        den = self.r + phi
+        num = 1 - np.exp(-self.ttm * den)
+        Int = c_n * (K2 * (ssp.expi(lambd_n * np.log(K2 + tol))) - K1 * ssp.expi(lambd_n * np.log(K1)) ) +\
+              c_n * (ssp.expi((lambd_n + 1) * np.log(K1)) - ssp.expi((lambd_n + 1) * np.log(K2+tol)))
+        #
+        #Int = c_n * (-K1 * ssp.expi(lambd_n * np.log(K1)) + K2 * (ssp.expi(lambd_n * np.log(K2 + tol))) -
+        #             ssp.expi((lambd_n + 1) * np.log(K2 + tol)) + ssp.expi((lambd_n + 1) * np.log(K1)))
+        # print(Int1, Int2, num, den)
+        return Int * num / den * 100
+
+    def closed_formula_otko6(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
+        tol = 1e-6
+        c = 1 / self.nu
+        N = 1 / (np.sqrt(self.theta ** 2 * self.nu ** 2 / 4 + self.sigma ** 2 * self.nu / 2) - self.theta * self.nu)
+        phi = -c * N * ssp.expi(N * np.log(K1))
+        den = self.r + phi
+        num = 1 - np.exp(-self.ttm * den)
+        #  Int1 = c * (K2 - K1) * ssp.expi(N*np.log(K2 + tol))
+        Int = c * N* (ssp.expi((N + 1) * np.log(K1)) - ssp.expi((N + 1) * np.log(K2 + tol)))
+        #       c * K1 * (ssp.expi(N * np.log(K1)) - ssp.expi(N * np.log(K2 + tol)))
+        # print(Int1, Int2, num, den)
+        return Int * num / den * 100
 
     def FFT_call(self, K):
         K = np.array(K)
