@@ -75,14 +75,25 @@ class Kou_pricer():
             Nj = np.random.poisson(lam=self.lambd * dt, size=(N,))
 
             # Generate jump sizes J
-            U = np.random.uniform(size=(N,))  # Generate uniform random variables
+            U = np.random.uniform(0, 1, size=(N,))  # Generate uniform random variables
             J = np.zeros_like(U)  # Initialize jump sizes
-            J[U < self.p] = -np.log(1 - U[U < self.p]) / self.eta2  # Negative jumps
-            J[U >= self.p] = np.log(U[U >= self.p]) / self.eta1  # Positive jumps
+            for i in range(N):
+                if U[i] >= self.p:
+                    J[i] = (-1/self.eta1) * np.log((1-U[i]) / self.p)
+                else:
+                    J[i] = (1 / self.eta2) * np.log(U[i] / self.q)
+
+            # J[U <= self.p] = 1/self.eta2 * np.log((1 - U[U < self.p]) / self.q)   # Negative jumps
+            # J[U > self.p] = (-1/self.eta1) * np.log(U[U >= self.p] / self.p)  # Positive jumps
+
+            # J = np.where(U <= self.p, -np.log(1 - self.eta1 * U) / self.eta1, np.log(1 - self.eta2 * (U - self.p) / self.q) / self.eta2)  # Use the same jump size calculation as before
+            # Step 2: Calculate J using inverse transform sampling
+            # J = np.where(U <= self.p, -np.log(1 - 1/self.eta1 * U) * self.eta1, np.log(1 - 1/self.eta2 * (U - self.p) / self.q) * self.eta2)
 
             # Find components
             jump_component = J * Nj
             drift_component = (self.r - 0.5 * self.sigma ** 2 - self.lambd*zeta) * dt
+            # drift_component = (self.r - 0.5 * self.sigma ** 2) * dt
             diffusion_component = self.sigma * np.sqrt(dt) * Z
 
             # New prices computation
@@ -156,21 +167,24 @@ class Kou_pricer():
         ax.legend()
         return
 
-    def payoff_vanilla(self, St, type_o):
+    def payoff_vanilla(self, K, St, type_o):
         """
         Payoff of the plain vanilla options: european put and call
         """
+        self.K = K
         if type_o == 'call':
-            return self.payoff_call(St)
+            return self.payoff_call(self.K, St)
         elif type_o == 'put':
-            return self.payoff_put(St)
+            return self.payoff_put(self.K, St)
         else:
             raise ValueError('Please select "call" or "put" type.')
 
-    def payoff_call(self, St):
+    def payoff_call(self, K, St):
+        self.K = K
         return np.maximum(St - self.K, 0)
 
-    def payoff_put(self, St):
+    def payoff_put(self, K,  St):
+        self.K = K
         return np.maximum(self.K - St, 0)
 
     # DONE: implement the payoff
@@ -337,10 +351,18 @@ class Kou_pricer():
 
     def closed_formula_otko(self, K1, K2):
         beta = np.log(K1)
-        phi = self.lambd * self.q * np.exp(beta*self.eta2)
+        phi = self.lambd * self.q * np.exp(beta/self.eta2)
         den = self.r + phi
         num = (1 - np.exp(-self.T * den))
-        Int = self.lambd*self.q / (1+self.eta2) * (K1**(1+self.eta2) - K2**(1+self.eta2))
+        Int = self.lambd*self.q / (1 + self.eta2) * (K1**(1+self.eta2) - K2**(1+self.eta2))
+        return Int * num / den * 100
+
+    def closed_formula_otko2(self, K1, K2):
+        beta = np.log(K1)
+        phi = self.lambd * self.q * np.exp(beta / self.eta2)
+        den = self.r + phi
+        num = (1 - np.exp(-self.T * den))
+        Int = self.lambd*self.q*self.eta2 / (1 + self.eta2) * (K1**(1 + 1/self.eta2) - K2**(1+ 1/self.eta2))
         return Int * num / den * 100
 
     # REF: https: // www.researchgate.net / publication / 5143311_Risk - Neutral_and_Actual_Default_Probabilities_with_an_Endogenous_Bankruptcy_Jump - Diffusion_Model

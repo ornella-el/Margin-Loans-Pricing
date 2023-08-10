@@ -56,8 +56,7 @@ class VG_pricer():
         self.exercise = exercise
 
         # PARAMETERS OF THE 2ND REPRESENTATION (DIFF OF GAMMAS)
-        self.mu_p = 0.5 * np.sqrt(
-            self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) + 0.5 * self.theta  # positive jump mean
+        self.mu_p = 0.5 * np.sqrt(self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) + 0.5 * self.theta  # positive jump mean
         self.mu_n = 0.5 * np.sqrt(
             self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) - 0.5 * self.theta  # negative jump mean
         self.nu_p = self.mu_p ** 2 * self.nu  # positive jump variamce
@@ -68,13 +67,13 @@ class VG_pricer():
         size = (days, N)
         SVarGamma = np.zeros(size)
         SVarGamma[0] = self.S0
+        omega = np.log(1 - self.theta * self.nu - 0.5 * self.nu * self.sigma ** 2) / self.nu
         for t in range(1, days):
             Z = np.random.normal(size=(N,))
             # U = np.random.uniform(0, 1, size=(N,))
             deltaG = np.random.gamma(shape=dt / self.nu, scale=self.nu, size=(N,))
             h = self.theta * deltaG + self.sigma * np.sqrt(deltaG) * Z
             # h = theta * G + sigma * np.sqrt(G) * norm.ppf(U)
-            omega = (np.log(1 - self.nu * self.theta - 0.5 * self.nu * pow(self.sigma, 2))) / self.nu
             # SVarGamma[t] = SVarGamma[t - 1] * np.exp((r - 0.5 * sigma ** 2 + omega) * dt + h * dt)
             SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r + omega) * dt + h)
 
@@ -179,21 +178,24 @@ class VG_pricer():
         ax.legend()
         return
 
-    def payoff_vanilla(self, St, type_o):
+    def payoff_vanilla(self, K, St, type_o):
         """
         Payoff of the plain vanilla options: european put and call
         """
+        self.K = K
         if type_o == 'call':
-            return self.payoff_call(St)
+            return self.payoff_call(self.K, St)
         elif type_o == 'put':
-            return self.payoff_put(St)
+            return self.payoff_put(self.K, St)
         else:
             raise ValueError('Please select "call" or "put" type.')
 
-    def payoff_call(self, St):
+    def payoff_call(self, K, St):
+        self.K = K
         return np.maximum(St - self.K, 0)
 
-    def payoff_put(self, St):
+    def payoff_put(self, K,  St):
+        self.K = K
         return np.maximum(self.K - St, 0)
 
     # DONE: implement the payoff
@@ -204,8 +206,6 @@ class VG_pricer():
         k2 = 'One-Touch' barrier: let the seller receive a payoff for the downward jump
         """
         payoff = 0
-        K1 = K1
-        K2 = K2
         returns = path[1:] / path[:-1]
         for Rt in returns:
             if Rt > K1:
@@ -332,71 +332,49 @@ class VG_pricer():
         print(Int1, Int2, num, den)
         return (Int1 + Int2) * num / den
 
-    def closed_formula_otko2(self, K1, K2):  # con incomplete gamma function integral, versione solo GAP (TANKOV)
-        c = 1 / self.nu
-        lamd1 = (np.sqrt(
-            self.theta ** 2 + 2 * self.sigma ** 2 / self.nu) / self.sigma ** 2) - self.theta / self.sigma ** 2
-        phi = ssp.gammainc(0, -np.log(K1) * lamd1) * c
-        num = (1 - np.exp(-self.ttm * (self.r + phi)))
-        den = self.r + phi
-        Int = c * K1 * (ssp.gammainc(0, -np.log(K1) * lamd1)) + (c * ssp.gammainc(0, -np.log(K1) * (1 + lamd1)))
-        # print(Int, num, den)
-        return Int * num / den
-
-    def closed_formula_otko3(self, K1, K2):  # con exponential integral, versione solo GAP (TANKOV)
-        tol = 1e-6
-        c = 1 / self.nu
-        lamd1 = (np.sqrt(
-            self.theta ** 2 + 2 * self.sigma ** 2 / self.nu) / self.sigma ** 2) - self.theta / self.sigma ** 2
-        phi = -c * ssp.expi(lamd1 * np.log(K1))
-        num = (1 - np.exp(-self.ttm * (self.r + phi)))
-        den = self.r + phi
-        Int = c * (ssp.expi(np.log(K1) * (1+lamd1))) - (c * ssp.expi(np.log(K2+tol) * (1 + lamd1)))
-        # print(Int, num, den)
-        return -Int * num / den * 100
-
-    def closed_formula_otko4(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
-        tol = 1e-6
-        c = 1 / self.nu
-        lamd1 = (np.sqrt(
-            self.theta ** 2 + 2 * self.sigma ** 2 / self.nu) / self.sigma ** 2) + self.theta / self.sigma ** 2
-        phi = c * ssp.expi(lamd1 * np.log(K1))
-        num = (1 - np.exp(-self.ttm * (self.r + phi)))
-        den = self.r + phi
-        Int1 = c*(K1 - K2) * ssp.expi(np.log(K2 + tol) * lamd1)
-        # Int2 = c * (ssp.expi(np.log(K1) * lamd1) - ssp.expi(np.log(K2 + tol) * lamd1)) + \
-        #       c * (ssp.expi(np.log(K1) * (1 + lamd1)) - ssp.expi(np.log(K2 + tol) * (1 + lamd1)))
-        Int2 = c * (ssp.expi(np.log(K1) * (1 + lamd1)) - ssp.expi(np.log(K2 + tol) * (1 + lamd1)))
-
-        # print(Int1, Int2, num, den)
-        return -Int2  * num / den * 100
-
+    # https: // arxiv.org / pdf / 2303.05615.pdf
     def closed_formula_otko5(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
         tol = 1e-6
         c_n = self.mu_n ** 2 / self.nu_n
-        lambd_n = c_n / self.mu_n
+        lambd_n = self.mu_n / self.nu_n
         phi = -c_n * ssp.expi(lambd_n * np.log(K1))
         den = self.r + phi
         num = 1 - np.exp(-self.ttm * den)
-        Int = c_n * (K2 * (ssp.expi(lambd_n * np.log(K2 + tol))) - K1 * ssp.expi(lambd_n * np.log(K1)) ) +\
-              c_n * (ssp.expi((lambd_n + 1) * np.log(K1)) - ssp.expi((lambd_n + 1) * np.log(K2+tol)))
-        #
-        #Int = c_n * (-K1 * ssp.expi(lambd_n * np.log(K1)) + K2 * (ssp.expi(lambd_n * np.log(K2 + tol))) -
-        #             ssp.expi((lambd_n + 1) * np.log(K2 + tol)) + ssp.expi((lambd_n + 1) * np.log(K1)))
-        # print(Int1, Int2, num, den)
-        return Int * num / den * 100
+        Int1 = c_n * K2 * ssp.expi(lambd_n * np.log(K2 + tol)) - c_n * K1 * ssp.expi(lambd_n * np.log(K1))
+        Int2 = c_n * (ssp.expi((lambd_n + 1) * np.log(K1)) - ssp.expi((lambd_n + 1) * np.log(K2+tol)))
+
+        return (Int1 + Int2) * num / den * 100
+
+    def closed_formula_otko7(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
+        tol = 1e-6
+        c = 1 / self.nu
+        G = 1 / (np.sqrt(self.theta ** 2 * self.nu ** 2 / 4 + self.sigma ** 2 * self.nu / 2) - self.theta * self.nu/2)
+        phi = -c * ssp.expi(G * np.log(K1))
+        den = self.r + phi
+        num = 1 - np.exp(-self.ttm * den)
+        Int1 = c * (K2 * ssp.expi(G * np.log(K2 + tol)) - K1 * ssp.expi(G * np.log(K1)))
+        Int2 = c * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
+        return ( Int2) * num / den * 100
 
     def closed_formula_otko6(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
         tol = 1e-6
         c = 1 / self.nu
-        N = 1 / (np.sqrt(self.theta ** 2 * self.nu ** 2 / 4 + self.sigma ** 2 * self.nu / 2) - self.theta * self.nu)
-        phi = -c * N * ssp.expi(N * np.log(K1))
+        G = 1 / (np.sqrt(self.theta ** 2 * self.nu ** 2 / 4 + self.sigma ** 2 * self.nu / 2) - self.theta * self.nu/2)
+        phi = -c * ssp.expi(G * np.log(K1))
         den = self.r + phi
         num = 1 - np.exp(-self.ttm * den)
-        #  Int1 = c * (K2 - K1) * ssp.expi(N*np.log(K2 + tol))
-        Int = c * N* (ssp.expi((N + 1) * np.log(K1)) - ssp.expi((N + 1) * np.log(K2 + tol)))
-        #       c * K1 * (ssp.expi(N * np.log(K1)) - ssp.expi(N * np.log(K2 + tol)))
-        # print(Int1, Int2, num, den)
+        Int1 = c * (K2 * ssp.expi(G * np.log(K2 + tol)) - K1 * ssp.expi(G * np.log(K1)))
+        Int2 = c * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
+        return (Int1 + Int2) * num / den * 100
+
+    def closed_formula_otko8(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
+        tol = 1e-6
+        c = 1 / self.nu
+        G = 1 / (np.sqrt(self.theta ** 2 * self.nu ** 2 / 4 + self.sigma ** 2 * self.nu / 2 - self.theta * self.nu/2))
+        phi = -c * ssp.expi(G * np.log(K1))
+        den = self.r + phi
+        num = 1 - np.exp(-self.ttm * den)
+        Int = -c * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
         return Int * num / den * 100
 
     def FFT_call(self, K):

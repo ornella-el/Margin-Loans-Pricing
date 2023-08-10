@@ -59,11 +59,15 @@ class Merton_pricer():
         for t in range(1, days):
             mean = np.exp(self.meanJ + self.stdJ ** 2 / 2)
             Z = np.random.normal(size=(N,))  # Brownian motion, diffusion component
+
             Nj = np.random.poisson(lam=self.lambd * dt, size=(N,))
-            J = np.random.normal(self.meanJ - self.lambd * self.stdJ ** 2 / 2, self.stdJ, size=(N,))
+            # J = np.random.normal(self.meanJ - self.lambd * self.stdJ ** 2 / 2, self.stdJ, size=(N,))
+            J = np.random.normal(self.meanJ, self.stdJ, size=(N,))
             jump_component = (np.exp(J) - 1) * Nj
+
             drift_component = (self.r - self.lambd * (
                         mean - 1) - 0.5 * self.sigma ** 2) * dt  # added risk-neutral adjustment
+
             diffusion_component = self.sigma * np.sqrt(dt) * Z
             # New prices computation
             SMerton[t] = SMerton[t - 1] * np.exp(drift_component + diffusion_component + jump_component)
@@ -133,21 +137,24 @@ class Merton_pricer():
         ax.legend()
         return
 
-    def payoff_vanilla(self, St, type_o):
+    def payoff_vanilla(self, K, St, type_o):
         """
         Payoff of the plain vanilla options: european put and call
         """
+        self.K = K
         if type_o == 'call':
-            return self.payoff_call(St)
+            return self.payoff_call(self.K, St)
         elif type_o == 'put':
-            return self.payoff_put(St)
+            return self.payoff_put(self.K, St)
         else:
             raise ValueError('Please select "call" or "put" type.')
 
-    def payoff_call(self, St):
+    def payoff_call(self, K, St):
+        self.K = K
         return np.maximum(St - self.K, 0)
 
-    def payoff_put(self, St):
+    def payoff_put(self, K,  St):
+        self.K = K
         return np.maximum(self.K - St, 0)
 
     # DONE: implement the payoff
