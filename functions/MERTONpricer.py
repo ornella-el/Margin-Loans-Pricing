@@ -63,8 +63,8 @@ class Merton_pricer():
             Nj = np.random.poisson(lam=self.lambd * dt, size=(N,))
             # J = np.random.normal(self.meanJ - self.lambd * self.stdJ ** 2 / 2, self.stdJ, size=(N,))
             J = np.random.normal(self.meanJ, self.stdJ, size=(N,))
-            jump_component = (np.exp(J) - 1) * Nj
-
+            jump_component = J * Nj
+            # jump_component = (np.exp(J) - 1) * Nj
             drift_component = (self.r - self.lambd * (
                         mean - 1) - 0.5 * self.sigma ** 2) * dt  # added risk-neutral adjustment
 
@@ -207,7 +207,7 @@ class Merton_pricer():
             r_k = self.r - self.lambd * (mean - 1) + (k * np.log(mean)) / self.ttm
             sigma_k = np.sqrt(self.sigma ** 2 + (k * self.stdJ ** 2) / self.ttm)
             k_fact = factorial(k)
-            V += (np.exp(-mean * self.lambd * self.ttm) * (mean * self.lambd * self.ttm) ** k) / k_fact * \
+            V += (np.exp(-mean * self.lambd * self.ttm) * np.power(mean * self.lambd * self.ttm, k)) / k_fact * \
                  BS_Pricer.BlackScholes(type_o='put', S0=self.S0, K=self.K, ttm=self.ttm,
                                         r=r_k, q=self.q, sigma=sigma_k)
         return V
