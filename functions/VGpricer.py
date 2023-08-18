@@ -12,7 +12,7 @@ from functions.CFs import cf_VG
 
 # %%%%%%%%%%%%%%%%%%%%%%%       Variance Gamma Model       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 """
-    S[t] = S[t-1] * exp((r + omega)t + theta*G(t) + sigma* sqrt(G(t))*Z(t)
+    S[t] = S[t-1] * exp((r - omega)t + theta*G(t) + sigma* sqrt(G(t))*Z(t)
     S[t]: the stock price at time t
     S[t-1]: the stock price at the previous time step
     r: risk-free rate
@@ -53,15 +53,27 @@ class VG_pricer():
         self.sigma = sigma  # σ: diffusion coefficient (annual volatility)
         self.theta = theta  # θ: Drift of gamma process
         self.nu = nu  # ν: variance of gamma process
+        self.rho = 1/self.nu
         self.exercise = exercise
 
         # PARAMETERS OF THE 2ND REPRESENTATION (DIFF OF GAMMAS)
         self.mu_p = 0.5 * np.sqrt(self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) + 0.5 * self.theta  # positive jump mean
-        self.mu_n = 0.5 * np.sqrt(
-            self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) - 0.5 * self.theta  # negative jump mean
-        self.nu_p = self.mu_p ** 2 * self.nu  # positive jump variamce
-        self.nu_n = self.mu_n ** 2 * self.nu  # negative jump variance
+        self.mu_n = 0.5 * np.sqrt(self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) - 0.5 * self.theta  # negative jump mean
+        self.nu_p = np.power(self.mu_p, 2) * self.nu  # positive jump variance
+        self.nu_n = np.power(self.mu_n, 2) * self.nu  # negative jump variance
 
+    @property
+    def get_mu_p(self):
+        return self.mu_p
+    @property
+    def get_mu_n(self):
+        return self.mu_n
+    @property
+    def get_nu_p(self):
+        return self.nu_p
+    @property
+    def get_nu_n(self):
+        return self.nu_n
     def VarianceGammaPath1(self, days, N):
         dt = self.ttm / days
         size = (days, N)
@@ -69,13 +81,12 @@ class VG_pricer():
         SVarGamma[0] = self.S0
         omega = np.log(1 - self.theta * self.nu - 0.5 * self.nu * self.sigma ** 2) / self.nu
         for t in range(1, days):
-            Z = np.random.normal(size=(N,))
-            # U = np.random.uniform(0, 1, size=(N,))
-            deltaG = np.random.gamma(shape=dt / self.nu, scale=self.nu, size=(N,))
-            h = self.theta * deltaG + self.sigma * np.sqrt(deltaG) * Z
+            Z = np.random.normal(0, 1, size=(N,))
+            deltaG = ss.gamma.rvs(a=dt / self.nu, scale=self.nu, size=(N,))
+            VG = self.theta * deltaG + self.sigma * np.sqrt(deltaG) * Z
             # h = theta * G + sigma * np.sqrt(G) * norm.ppf(U)
             # SVarGamma[t] = SVarGamma[t - 1] * np.exp((r - 0.5 * sigma ** 2 + omega) * dt + h * dt)
-            SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r + omega) * dt + h)
+            SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r + omega) * dt + VG)
 
         return SVarGamma
 
@@ -85,11 +96,12 @@ class VG_pricer():
         size = (days, N)
         SVarGamma = np.zeros(size)
         SVarGamma[0] = self.S0
+        omega = np.log(1 - (self.theta * self.nu) - (self.nu * self.sigma ** 2)/2) / self.nu
         for t in range(1, days):
-            omega = (np.log(1 - self.theta * self.nu - 0.5 * self.nu * self.sigma ** 2)) / self.nu
-            Gamma_p = np.random.gamma(dt / self.nu, self.mu_p * self.nu, size=(N,))
-            Gamma_n = np.random.gamma(dt / self.nu, self.mu_n * self.nu, size=(N,))
-            SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r + omega) * dt + Gamma_p - Gamma_n)
+            Gamma_p = ss.gamma.rvs(a=dt / self.nu, scale=self.mu_p * self.nu, size=(N,))
+            Gamma_n = ss.gamma.rvs(a=dt / self.nu, scale=self.mu_n * self.nu, size=(N,))
+            VG = (Gamma_p - Gamma_n)
+            SVarGamma[t] = SVarGamma[t - 1] * np.exp((self.r + omega)*dt + VG)
         return SVarGamma
 
     # plot the price paths
@@ -225,14 +237,12 @@ class VG_pricer():
         """
         VG closed formula for call options.  Put is obtained by put/call parity.
         """
-
+        self.K = K
         def Psy(a, b, g):
             f = lambda u: ss.norm.cdf(a / np.sqrt(u) + b * np.sqrt(u)) * np.exp((g - 1) * np.log(u)) * np.exp(
                 -u) / ssp.gamma(g)
             result = quad(f, 0, np.inf)
             return result[0]
-
-        self.K = K
 
         # Ugly parameters
         xi = - self.theta / self.sigma ** 2
@@ -318,19 +328,6 @@ class VG_pricer():
             t * (1j * mu * u - np.log(1 - 1j * theta * nu * u + 0.5 * nu * sigma ** 2 * u ** 2) / nu))
 
     #  https://www.impan.pl/swiat-matematyki/notatki-z-wyklado~/tankov2.pdf
-    def closed_formula_otko(self, K1, K2):  # con incomplete gamma function integral, versione MIA (integrata)
-        c = 1 / self.nu
-        lamd1 = (np.sqrt(
-            self.theta ** 2 + 2 * self.sigma ** 2 / self.nu) / self.sigma ** 2) + self.theta / self.sigma ** 2
-        phi = ssp.gammainc(0, -np.log(K1) * lamd1) * c
-        num = (1 - np.exp(-self.ttm * (self.r + phi)))
-        den = self.r + phi
-        Int1 = (K1 - K2) * ssp.gammainc(0, -np.log(K2) * lamd1) * c
-        Int2 = c * K1 * (ssp.gammainc(0, -np.log(K1) * lamd1) - ssp.gammainc(0, -np.log(K2) * lamd1)) + \
-               c * (ssp.gammainc(0, -np.log(K1) * (1 + lamd1)) - ssp.gammainc(0, -np.log(K2) * (1 + lamd1)))
-
-        print(Int1, Int2, num, den)
-        return (Int1 + Int2) * num / den
 
     # https: // arxiv.org / pdf / 2303.05615.pdf
     def closed_formula_otko5(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
@@ -352,9 +349,9 @@ class VG_pricer():
         phi = -c * ssp.expi(G * np.log(K1))
         den = self.r + phi
         num = 1 - np.exp(-self.ttm * den)
-        Int1 = c * (K2 * ssp.expi(G * np.log(K2 + tol)) - K1 * ssp.expi(G * np.log(K1)))
-        Int2 = c * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
-        return ( Int2) * num / den * 100
+        Int = -c / (G+1) * (K1 * ssp.expi((G+1) * np.log(K1+tol)) - K2 * ssp.expi((G+1) * np.log(K2+tol)))
+        # Int2 = c * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
+        return Int * num / den * 100
 
     def closed_formula_otko6(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
         tol = 1e-6
@@ -370,12 +367,14 @@ class VG_pricer():
     def closed_formula_otko8(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
         tol = 1e-6
         c = 1 / self.nu
-        G = 1 / (np.sqrt(self.theta ** 2 * self.nu ** 2 / 4 + self.sigma ** 2 * self.nu / 2 - self.theta * self.nu/2))
+        G = 1 / (np.sqrt(self.theta ** 2 * self.nu ** 2 / 4 + self.sigma ** 2 * self.nu / 2) - self.theta * self.nu/2)
         phi = -c * ssp.expi(G * np.log(K1))
         den = self.r + phi
         num = 1 - np.exp(-self.ttm * den)
-        Int = -c * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
-        return Int * num / den * 100
+        Int1 = c / G * (K2 * ssp.expi(G * np.log(K2 + tol)) - K1 * ssp.expi(G * np.log(K1)))
+        Int2 = c / (G+1) * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
+        return (Int1 + Int2) * num / den * 100
+
 
     def FFT_call(self, K):
         K = np.array(K)

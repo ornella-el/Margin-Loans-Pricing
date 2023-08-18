@@ -204,8 +204,8 @@ class BS_Pricer:
           Black Scholes closed formula for put options
         """
         self.K = K
-        d1 = (np.log(self.S0 / self.K) + (self.r + self.sigma ** 2 / 2) * self.ttm) / (self.sigma * np.sqrt(self.ttm))
-        d2 = (np.log(self.S0 / self.K) + (self.r - self.sigma ** 2 / 2) * self.ttm) / (self.sigma * np.sqrt(self.ttm))
+        d1 = (np.log(self.S0 / self.K) + (self.r - self.q + self.sigma ** 2 / 2) * self.ttm) / (self.sigma * np.sqrt(self.ttm))
+        d2 = (np.log(self.S0 / self.K) + (self.r - self.q - self.sigma ** 2 / 2) * self.ttm) / (self.sigma * np.sqrt(self.ttm))
 
         return self.K * np.exp(-self.r * self.ttm) * ss.norm.cdf(-d2) - self.S0 * np.exp(
             -self.q * self.ttm) * ss.norm.cdf(-d1)
