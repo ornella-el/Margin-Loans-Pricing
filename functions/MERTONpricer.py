@@ -4,7 +4,7 @@ import scipy.stats as ss
 import seaborn as sns
 from scipy.integrate import quad
 import matplotlib.pyplot as plt
-from functions.BSpricer import BS_Pricer
+from BSpricer import BS_Pricer
 from math import factorial
 
 # %%%%%%%%%%%%%%%%%%%%%%%       Merton Jump Diffusion Model       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

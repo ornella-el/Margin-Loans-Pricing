@@ -7,8 +7,8 @@ from scipy.integrate import quad
 from functools import partial
 import seaborn as sns
 import matplotlib.pyplot as plt
-from functions.FFT import fft_Lewis
-from functions.CFs import cf_VG
+from FFT import fft_Lewis
+from CFs import cf_VG
 
 # %%%%%%%%%%%%%%%%%%%%%%%       Variance Gamma Model       %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 """
