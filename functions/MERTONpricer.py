@@ -189,8 +189,8 @@ class Merton_pricer():
     def closed_formula_call(self, K):
         self.K = K
         V = 0
+        mean = np.exp(self.meanJ + self.stdJ ** 2 / 2)
         for k in range(40):
-            mean = np.exp(self.meanJ + self.stdJ ** 2 / 2)
             r_k = self.r - self.lambd * (mean - 1) + (k * np.log(mean)) / self.ttm
             sigma_k = np.sqrt(self.sigma ** 2 + (k * self.stdJ ** 2) / self.ttm)
             k_fact = factorial(k)

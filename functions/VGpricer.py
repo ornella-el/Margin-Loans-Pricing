@@ -113,9 +113,9 @@ class VG_pricer():
         ax.set_xlabel('Time (days)')
         ax.set_ylabel('Price')
         if method == 'Time changed BM':
-            ax.set_title(f'VG PATHS for {symbol} with {method}, theta = {round(self.theta,3)}, nu = {round(self.nu,3)}')
+            ax.set_title(f'VG PATHS with {method}, theta = {round(self.theta,3)}, nu = {round(self.nu,3)}')
         else:
-            ax.set_title(f'VG PATHS for {symbol} with {method}, mu_p = {round(self.mu_p,3)}, mu_n = {round(self.mu_n,3)}')
+            ax.set_title(f'VG PATHS with {method}, mu_p = {round(self.mu_p,3)}, mu_n = {round(self.mu_n,3)}')
         # plt.savefig(f'VG_allpaths_{method}.png')
         return
 
