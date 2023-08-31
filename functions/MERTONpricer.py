@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats as ss
 import seaborn as sns
+import math
 from scipy.integrate import quad
 import matplotlib.pyplot as plt
 from BSpricer import BS_Pricer
@@ -250,6 +251,20 @@ class Merton_pricer():
         # print(I_go, num, den)
 
         return I_go * num / den
+
+    def pdf_mjd(self, x, days):
+        dt = self.ttm / days
+        # Risk-free paramaters
+        mean = np.exp(self.meanJ + self.stdJ ** 2 / 2)
+        mu = self.r - self.lambd*(mean - 1)
+        sum = 0
+
+        for k in range(171):  # Using 171 to approximate the loop in R
+            numerator = (self.lambd * dt) ** k * np.exp(-((x - mu * dt - k * self.meanJ) ** 2) / (2 * (self.sigma ** 2 * dt + k * self.stdJ ** 2)))
+            denominator = math.factorial(k) * np.sqrt(2 * np.pi * (self.sigma ** 2 * dt + k * self.stdJ ** 2))
+            sum += numerator / denominator
+
+        return sum * np.exp(-self.lambd * dt)
 
         # phi2 = ss.norm.cdf(np.log(K2), self.meanJ, self.stdJ)
         # phi4 = ss.norm.cdf((np.log(K1) - self.meanJ) / self.stdJ - self.stdJ)

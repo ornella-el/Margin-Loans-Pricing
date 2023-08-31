@@ -365,6 +365,24 @@ class Kou_pricer():
         Int = self.lambd*self.q*self.eta2 / (1 + self.eta2) * (K1**(1 + 1/self.eta2) - K2**(1+ 1/self.eta2))
         return Int * num / den * 100
 
+    # REF "Kou, 2002. A Jump-Diffusion Model for Option Pricing.pdf"
+    def pdf_kjd(self, x, days):
+        dt = self.T / days
+
+        # find risk-neutral parameters
+        zeta = self.q * self.eta2 / (self.eta2 + 1) + self.p * self.eta1 / (self.eta1 - 1) - 1
+        mu = self.r - self.lambd*zeta
+
+        # find the sum in {} brackets
+        c1 = self.p*self.eta1*np.exp(self.sigma**2*self.eta1**2*dt/2)*np.exp(-(x-mu*dt)*self.eta1)* \
+                scs.norm.cdf((x-mu*dt-self.sigma**2*self.eta1*dt)/(self.sigma*np.sqrt(dt)))
+        c2 = self.q*self.eta2*np.exp(self.sigma**2*self.eta2**2*dt/2)*np.exp((x-mu*dt)*self.eta2) * \
+             scs.norm.cdf(- (x - mu * dt - self.sigma ** 2 * self.eta2 * dt) / (self.sigma * np.sqrt(dt)))
+
+        # find the KDEJD density
+        g_x = (1-self.lambd*dt)/(self.sigma*np.sqrt(dt))*scs.norm.pdf((x-mu*dt)/self.sigma*np.sqrt(dt)) + self.lambd*dt*(c1+c2)
+        return g_x
+
     # REF: https: // www.researchgate.net / publication / 5143311_Risk - Neutral_and_Actual_Default_Probabilities_with_an_Endogenous_Bankruptcy_Jump - Diffusion_Model
     def Esscher_measure(self):
         def func(h):
