@@ -49,9 +49,8 @@ class Kou_pricer():
 
     def __init__(self, S0, K, ttm, r, sigma, lambd, p, eta1, eta2, exercise):
         self.S0 = S0  # current STOCK price
-        self.K = K  # strike
+        self.K = None  # strike
         self.T = ttm  # maturity in years
-
         self.r = r  # interest rate
         self.sigma = sigma  # σ: diffusion coefficient (annual volatility)
         self.lambd = lambd  # λ: Num of jumps per year
@@ -59,6 +58,7 @@ class Kou_pricer():
         self.q = 1 - self.p  # q: probability of downward jumps
         self.eta1 = eta1  # η_1: rate of exponential r.v. ξ_1 (1/η_1 mean)
         self.eta2 = eta2  # η_2: rate of exponential r.v. ξ_2 (1/η_2 mean)
+        self.exercise = None
 
     def KouPath(self, days, N):
         dt = self.T / days

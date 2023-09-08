@@ -38,7 +38,7 @@ N: number of simulated paths
         psi(a1, b1, gamma): defined in terms of K_v(z) and Phi(γ,1-γ,1+γ; (1+u)/2, -sign(a) c(1+u))
         K_v(z): modified bessel function of the second kind
         Φ(γ,1-γ,1+γ; (1+u)/2, -sign(a) c(1+u)): integral representation Humbert
-
+the function 
 """
 
 
@@ -46,7 +46,7 @@ class VG_pricer():
 
     def __init__(self, S0, K, ttm, r, q, sigma, theta, nu, exercise):
         self.S0 = S0  # current STOCK price
-        self.K = K  # strike
+        self.K = None  # strike
         self.ttm = ttm  # maturity in years
         self.r = r  # interest rate
         self.q = q  # dividend yield
@@ -54,7 +54,7 @@ class VG_pricer():
         self.theta = theta  # θ: Drift of gamma process
         self.nu = nu  # ν: variance of gamma process
         self.rho = 1/self.nu
-        self.exercise = exercise
+        self.exercise = None
 
         # PARAMETERS OF THE 2ND REPRESENTATION (DIFF OF GAMMAS)
         self.mu_p = 0.5 * np.sqrt(self.theta ** 2 + (2 * self.sigma ** 2 / self.nu)) + 0.5 * self.theta  # positive jump mean

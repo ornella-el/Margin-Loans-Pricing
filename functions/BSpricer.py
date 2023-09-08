@@ -36,7 +36,7 @@ class BS_Pricer:
         self.ttm = ttm  # maturity in years
         self.q = 0  # dividend yield
         # self.price = 0
-        self.exercise = exercise
+        self.exercise = None
         # self.type_o = type_o if type_o is not None else 'no_type'
 
     def BlackScholesPath(self, days, N):

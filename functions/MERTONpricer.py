@@ -50,7 +50,7 @@ class Merton_pricer():
         self.lambd = lambd  # λ: Num of jumps per year
         self.meanJ = meanJ  # m: Mean of jump size
         self.stdJ = stdJ  # v: St. dev. of jump size
-        self.exercise = exercise
+        self.exercise = None
 
     def MertonPath(self, days, N):
         dt = self.ttm / days
