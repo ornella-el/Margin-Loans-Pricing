@@ -32,11 +32,11 @@ class BS_Pricer:
         self.S0 = S0  # current price
         self.r = r  # interest rate
         self.sigma = sigma  # diffusion coefficient
-        self.K = K  # strike
         self.ttm = ttm  # maturity in years
         self.q = 0  # dividend yield
         # self.price = 0
         self.exercise = None
+        self.K = None  # strike
         # self.type_o = type_o if type_o is not None else 'no_type'
 
     def BlackScholesPath(self, days, N):
