@@ -234,14 +234,16 @@ class VG_pricer():
         return - np.log(1 - self.theta * self.nu - (self.sigma ** 2 * self.nu) / 2) / self.nu
 
     def closed_formula_call(self, K):
+        eps = 1e-6
         """
         VG closed formula for call options.  Put is obtained by put/call parity.
         """
         self.K = K
         def Psy(a, b, g):
-            f = lambda u: ss.norm.cdf(a / np.sqrt(u) + b * np.sqrt(u)) * np.exp((g - 1) * np.log(u)) * np.exp(
+
+            f = lambda u: ss.norm.cdf(a / np.sqrt(u) + b * np.sqrt(u)) * np.exp((g - 1) * np.log(u)+eps) * np.exp(
                 -u) / ssp.gamma(g)
-            result = quad(f, 0, np.inf)
+            result = quad(f, 0, np.inf, epsabs=1e-6, epsrel=1e-6)
             return result[0]
 
         # Ugly parameters
@@ -251,7 +253,7 @@ class VG_pricer():
 
         c1 = self.nu / 2 * (alpha + s) ** 2
         c2 = self.nu / 2 * alpha ** 2
-        d = 1 / s * (np.log(self.S0 / self.K) + self.r * self.ttm + self.ttm / self.nu * np.log((1 - c1) / (1 - c2)))
+        d = 1 / s * (np.log((self.S0 / self.K) + eps) + self.r * self.ttm + self.ttm / self.nu * np.log((1 - c1)/(1 - c2)+eps ))
 
         # Closed formula
         call = self.S0 * Psy(d * np.sqrt((1 - c1) / self.nu), (alpha + s) * np.sqrt(self.nu / (1 - c1)),
