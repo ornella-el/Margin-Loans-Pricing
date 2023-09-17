@@ -207,7 +207,7 @@ class Kou_pricer():
                 return payoff
         return payoff
 
-    # Three term recursion (Abramowitz and Stegun 1972)
+    # Three term recursion (Abramowitz and Stegun 197num2)
     def Hh(self, n, x):
         if n < -1:
             return 0
@@ -351,7 +351,7 @@ class Kou_pricer():
 
     def closed_formula_otko(self, K1, K2):
         beta = np.log(K1)
-        phi = self.lambd * self.q * np.exp(beta/self.eta2)
+        phi = self.lambd * self.q * np.exp(beta*self.eta2)
         den = self.r + phi
         num = (1 - np.exp(-self.T * den))
         Int = self.lambd*self.q / (1 + self.eta2) * (K1**(1+self.eta2) - K2**(1+self.eta2))
@@ -359,10 +359,10 @@ class Kou_pricer():
 
     def closed_formula_otko2(self, K1, K2):
         beta = np.log(K1)
-        phi = self.lambd * self.q * np.exp(beta / self.eta2)
+        phi = self.lambd * self.q * np.exp(beta* self.eta2)
         den = self.r + phi
         num = (1 - np.exp(-self.T * den))
-        Int = self.lambd*self.q*self.eta2 / (1 + self.eta2) * (K1**(1 + 1/self.eta2) - K2**(1+ 1/self.eta2))
+        Int = self.lambd*self.q / (1 + self.eta2) * (K1**(1 + self.eta2) - K2**(1+ self.eta2))
         return Int * num / den * 100
 
     # REF "Kou, 2002. A Jump-Diffusion Model for Option Pricing.pdf"
