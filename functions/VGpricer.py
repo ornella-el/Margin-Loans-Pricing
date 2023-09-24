@@ -115,7 +115,7 @@ class VG_pricer():
         if method == 'Time changed BM':
             ax.set_title(f'VG PATHS with {method}, theta = {round(self.theta,3)}, nu = {round(self.nu,3)}')
         else:
-            ax.set_title(f'VG PATHS with {method}, mu_p = {round(self.mu_p,3)}, mu_n = {round(self.mu_n,3)}')
+            ax.set_title(rf'VG PATHS with {method}, $mu_p$ = {round(self.mu_p,3)}, $mu_n$ = {round(self.mu_n,3)}')
         # plt.savefig(f'VG_allpaths_{method}.png')
         return
 
@@ -366,16 +366,7 @@ class VG_pricer():
         Int2 = c * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
         return (Int1 + Int2) * num / den * 100
 
-    def closed_formula_otko8(self, K1, K2):  # con exponential integral, versione solo MIA (integrale)
-        tol = 1e-6
-        c = 1 / self.nu
-        G = 1 / (np.sqrt(self.theta ** 2 * self.nu ** 2 / 4 + self.sigma ** 2 * self.nu / 2) - self.theta * self.nu/2)
-        phi = -c * ssp.expi(G * np.log(K1))
-        den = self.r + phi
-        num = 1 - np.exp(-self.ttm * den)
-        Int1 = c / G * (K2 * ssp.expi(G * np.log(K2 + tol)) - K1 * ssp.expi(G * np.log(K1)))
-        Int2 = c / (G+1) * (ssp.expi((G + 1) * np.log(K1)) - ssp.expi((G + 1) * np.log(K2 + tol)))
-        return (Int1 + Int2) * num / den * 100
+
 
 
     def FFT_call(self, K):
